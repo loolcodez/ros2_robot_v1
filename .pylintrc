@@ -1,0 +1,13 @@
+# This file contains disabled linter warnings
+
+# https://stackoverflow.com/questions/63809051/how-to-disable-pylint-warnings-and-messages-in-visual-studio-code
+
+[MESSAGES CONTROL]
+disable=C0114,C0115,C0116,C0301,C0415,W0511,W0718
+# C0114 missing-module-docstring
+# C0115 missing-class-docstring
+# C0116 missing-function-docstring
+# C0301:line-too-long
+# C0415 import-outside-toplevel
+# W0718 broad-exception-caught
+# W0511:fixme
