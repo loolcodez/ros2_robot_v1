@@ -58,13 +58,13 @@ class WebsocketNode(Node):
                         self.previous_twist_msg.linear.x = twist_msg.linear.x
                         self.previous_twist_msg.angular.z = twist_msg.angular.z
 
-                        self.get_logger().info(
-                            f"Websocket: Publishing cmd_vel_manual -> "
-                            f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
-                        )
+                    self.get_logger().info(
+                        f"Websocket: Publishing cmd_vel_manual -> "
+                        f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
+                    )
 
-                        # Publish the command
-                        self.move_command_publisher.publish(twist_msg)
+                    # Publish the command
+                    self.move_command_publisher.publish(twist_msg)
         except websockets.exceptions.ConnectionClosed:
             pass
         finally:

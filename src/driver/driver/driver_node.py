@@ -8,13 +8,14 @@ from std_msgs.msg import Float32, Int32, String
 from std_msgs.msg import Int32MultiArray
 #from odometer import ODOMeter
 
+
 class DriverNode(Node):
     def __init__(self):
         super().__init__('driver_node')
         self.shutdown = False
         self.declare_parameter('port', '/dev/ttyUSB0')
         self.declare_parameter('baudrate', 115200)
-#        self.declare_parameter('publish_rate_hz', 10.0)
+        self.declare_parameter('publish_rate_hz', 10.0)
         self.declare_parameter('command_timeout_sec', 1.0)
         self.declare_parameter('invert_motor_1', False) # left front
         self.declare_parameter('invert_motor_2', True) # right front
@@ -28,8 +29,8 @@ class DriverNode(Node):
 
         self.encoding_time_ms = 20 #ms
         self.previous_encoders: list[float] = [0.0] * 4
-        self.target_speeds: list[float] = [0.0] * 4
-        self.previous_target_speeds: list[float] = [0.0] * 4
+        self.target_motor_speeds: list[float] = [0.0] * 4
+        self.previous_target_motor_speeds: list[float] = [0.0] * 4
 
         self.port = self.get_parameter('port').value
         self.baudrate = int(self.get_parameter('baudrate').value)
@@ -68,7 +69,7 @@ class DriverNode(Node):
 
         # Read motor encoders
         period = 1 / self.encoding_time_ms
-        self.encoders_reader_timer = self.create_timer(period, self.read_wheel_encoders)
+        self.encoders_reader_timer = self.create_timer(period, self.handle_encoders)
 
         # Publish initial  battery status
         self.publish_battery()
@@ -127,7 +128,7 @@ class DriverNode(Node):
         if self.shutdown is True:
             return
 
-        # Add speed correction
+        # Add speed correction --> from 1 .. -1 to 60 .. -60
         msg.linear.x = msg.linear.x * self.max_linear
         msg.angular.z = -msg.angular.z * self.max_angular
 
@@ -145,30 +146,33 @@ class DriverNode(Node):
                 speeds[i] = -speeds[i]
 
         # Limit values to maximum values. # Each `speed_X` must be in the range `[-100, 100]`
-        self.target_speeds = [self.clamp_motor_value(v) for v in speeds]
+        self.target_motor_speeds = [self.clamp_motor_value(v) for v in speeds]
 
-        if self.target_speeds != self.previous_target_speeds:
+#        if self.target_motor_speeds != self.previous_target_motor_speeds:
             #reset_pid_if_needed()
-            pass
+            #pass
 
-        self.previous_target_speeds = self.target_speeds
+#        self.previous_target_motor_speeds = self.target_motor_speeds
 
     def handle_encoders(self):
         current_encoders = self.read_wheel_encoders()
         delta_encoders = [curr - prev for curr, prev in zip(current_encoders, self.previous_encoders)]
 
         self.previous_encoders = current_encoders
-        current_speeds = self.calculate_wheel_speeds(delta_encoders, self.encoding_time)
+        current_speeds = self.calculate_wheel_speeds(delta_encoders, self.encoding_time_ms)
 
         motors = [0, 1, 2, 3]
-        motor_speeds: list[float] = [
-            self.target_speeds[motor] + self.pid_control(self.target_speeds[motor], current_speeds[motor])
+        corrected_motor_speeds: list[float] = [
+            self.target_motor_speeds[motor] + self.pid_control(self.target_motor_speeds[motor], current_speeds[motor])
             for motor in motors
         ]
+        self.get_logger().info(f"Driver: corrected_motor_speeds: {
+            corrected_motor_speeds[0], corrected_motor_speeds[1],
+            corrected_motor_speeds[2], corrected_motor_speeds[3]}")
 
         # Limit values to maximum values. # Each `speed_X` must be in the range `[-100, 100]`
-        self.target_speeds = [self.clamp_motor_value(v) for v in motor_speeds]
-        self.set_motor_speeds(motor_speeds)
+        corrected_motor_speeds = [self.clamp_motor_value(v) for v in corrected_motor_speeds]
+        self.set_motor_speeds(corrected_motor_speeds)
 
     def calculate_wheel_speeds(self, delta_encoders, delta_time):
         # Calculate current speed for every wheel in the list
@@ -199,7 +203,7 @@ class DriverNode(Node):
         Kp = 0.5
         correction = error * Kp
 
-        correction = 0.0 
+        #correction = 0.0 
         return correction
 
     def set_motor_speeds(self, speeds: List[float]) -> bool:
@@ -223,8 +227,8 @@ class DriverNode(Node):
             return False
 
     @staticmethod
-    def clamp_motor_value(value: int) -> int:
-        return max(-100, min(100, value))
+    def clamp_motor_value(value: float) -> float:
+        return max(-100.0, min(100.0, value))
 
     def destroy_node(self, string_msg) -> bool:
         self.get_logger().info(string_msg.data)

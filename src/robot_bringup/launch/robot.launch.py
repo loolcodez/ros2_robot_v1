@@ -8,20 +8,25 @@ def generate_launch_description():
     driver_launch_dir = os.path.join(get_package_share_directory('driver'), 'launch')
     websocket_launch_dir = os.path.join(get_package_share_directory('websocket'), 'launch')
     power_launch_dir = os.path.join(get_package_share_directory('power_control'), 'launch')
+    proximity_launch_dir = os.path.join(get_package_share_directory('proximity_sensor'), 'launch')
 #    camera_launch_dir = os.path.join(get_package_share_directory('camera'), 'launch')
 
     launch_driver = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(driver_launch_dir, 'driver.launch.py'))
     )
-    
+
     launch_websocket = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(websocket_launch_dir, 'websocket.launch.py'))
     )
-    
+
     launch_power = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(power_launch_dir, 'power_control.launch.py'))
     )
-    
+
+    proximity_sensor = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(proximity_launch_dir, 'proximity_sensor.launch.py'))
+    )
+
  #   launch_camera = IncludeLaunchDescription(
  #       PythonLaunchDescriptionSource(os.path.join(camera_launch_dir, 'camera.launch.py'))
  #   )
@@ -29,6 +34,7 @@ def generate_launch_description():
     return LaunchDescription([
         launch_driver,
         launch_websocket,
-        launch_power
+        launch_power,
+        proximity_sensor
   #      launch_camera
     ])

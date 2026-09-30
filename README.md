@@ -277,6 +277,7 @@ sudo apt install python3-websockets
 ros2 pkg create --build-type ament_python --node-name power_control power_control
 ros2 pkg create --build-type ament_python --node-name websocket websocket
 ros2 pkg create --build-type ament_python --node-name driver driver
+ros2 pkg create --build-type ament_python --node-name proximity_sensor proximity_sensor
 
 cd /home/anssi/Documents/ros2_robot_v1
 rosdep install -i --from-path src --rosdistro jazzy -y
@@ -292,3 +293,11 @@ source install/setup.bash
 ros2 launch driver robot.launch.py
 
 ros2 launch rosmaster_base driver.launch.py
+
+Run only proximity sensor test
+source install/setup.bash
+ros2 launch proximity_sensor proximity_sensor.launch.py
+ros2 run proximity_sensor proximity_sensor
+
+# Asennetaan paketit suoraan viralliseen järjestelmäpolkuun, jota ROS 2 ei voi ohittaa
+sudo pip install smbus2 vl53l1x python-periphery --target=/usr/lib/python3/dist-packages --break-system-packages
