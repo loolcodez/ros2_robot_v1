@@ -8,7 +8,6 @@ from std_msgs.msg import Float32, Int32, String
 from std_msgs.msg import Int32MultiArray
 #from odometer import ODOMeter
 
-
 class DriverNode(Node):
     def __init__(self):
         super().__init__('driver_node')
@@ -17,13 +16,15 @@ class DriverNode(Node):
         self.declare_parameter('baudrate', 115200)
         self.declare_parameter('publish_rate_hz', 10.0)
         self.declare_parameter('command_timeout_sec', 1.0)
+        #self.declare_parameter('publish_rate_hz', 10.0)
+        #self.declare_parameter('command_timeout_sec', 1.0)
         self.declare_parameter('invert_motor_1', False) # left front
         self.declare_parameter('invert_motor_2', True) # right front
         self.declare_parameter('invert_motor_3', True) # left_rear
         self.declare_parameter('invert_motor_4', False) # right rear
-        # Set speed correction value. Value range received from Joystick is 1 .. -1
-        self.declare_parameter('max_linear', 60.0) # speed
-        self.declare_parameter('max_angular', 60.0) # turning
+        # Set speed correction value. Value range received from Joystick is -1 .. 1
+        self.declare_parameter('max_linear', 60.0) # speed. Must be in the range `[-100, 100]`
+        self.declare_parameter('max_angular', 60.0) # turning. Must be in the range `[-100, 100]`
         self.counts_per_revolution = 1320
         self.wheel_diameter = 0.065
 
@@ -34,8 +35,8 @@ class DriverNode(Node):
 
         self.port = self.get_parameter('port').value
         self.baudrate = int(self.get_parameter('baudrate').value)
-        self.publish_rate_hz = float(self.get_parameter('publish_rate_hz').value)
-        self.command_timeout_sec = float(self.get_parameter('command_timeout_sec').value)
+        #self.publish_rate_hz = float(self.get_parameter('publish_rate_hz').value)
+        #self.command_timeout_sec = float(self.get_parameter('command_timeout_sec').value)
 
         self.invert = [
             bool(self.get_parameter('invert_motor_1').value), # left front
@@ -46,9 +47,6 @@ class DriverNode(Node):
 
         self.max_linear = float(self.get_parameter('max_linear').value)
         self.max_angular = float(self.get_parameter('max_angular').value)
-
-        self.last_command_time = time.monotonic()
-        self.last_command = [0, 0, 0, 0]
 
         self.driver = None
         #self.odometer = ODOMeter()
@@ -116,19 +114,17 @@ class DriverNode(Node):
         # `on_time=1` keeps it on continuously
         # `on_time>=10` turns it on for the given number of milliseconds
         # `on_time` must be a multiple of 10 for timed operation
-        i = 0
-        while i < beep_count.data:
+        for _ in range(beep_count.data):
             on_time = 100 # 100ms
             self.driver.set_beep(on_time)
             time.sleep(1)
-            i = i + 1
 
     def handle_speed_control_command(self, msg):
         self.get_logger().info(f"Driver: linear.x={msg.linear.x:.2f}, angular.z={msg.angular.z:.2f}")
         if self.shutdown is True:
             return
 
-        # Add speed correction --> from 1 .. -1 to 60 .. -60
+        # Add speed correction --> from -1 .. 1 to -60 .. 60
         msg.linear.x = msg.linear.x * self.max_linear
         msg.angular.z = -msg.angular.z * self.max_angular
 
@@ -159,11 +155,11 @@ class DriverNode(Node):
         delta_encoders = [curr - prev for curr, prev in zip(current_encoders, self.previous_encoders)]
 
         self.previous_encoders = current_encoders
-        current_speeds = self.calculate_wheel_speeds(delta_encoders, self.encoding_time_ms)
+        current_motor_speeds = self.calculate_wheel_speeds(delta_encoders, self.encoding_time_ms)
 
         motors = [0, 1, 2, 3]
         corrected_motor_speeds: list[float] = [
-            self.target_motor_speeds[motor] + self.pid_control(self.target_motor_speeds[motor], current_speeds[motor])
+            self.target_motor_speeds[motor] + self.pid_control(self.target_motor_speeds[motor], current_motor_speeds[motor])
             for motor in motors
         ]
         self.get_logger().info(f"Driver: corrected_motor_speeds: {
@@ -197,13 +193,10 @@ class DriverNode(Node):
             self.get_logger().warning(f'Driver: Failed to read motor encoders: {exc}')
 
     def pid_control(self, target_speed, current_speed):
-        error = target_speed - current_speed
-
-        # Example of simple P control (add later I ja D):
+        # Simple P control (add later I and D if needed):
         Kp = 0.5
+        error = target_speed - current_speed
         correction = error * Kp
-
-        #correction = 0.0 
         return correction
 
     def set_motor_speeds(self, speeds: List[float]) -> bool:
@@ -217,10 +210,6 @@ class DriverNode(Node):
                 int(speeds[2]),
                 int(speeds[3]),
             )
-
-            # Store last motor status
-            self.last_command = speeds
-            self.last_command_time = time.monotonic()
             return True
         except Exception as exc:
             self.get_logger().error(f'Driver: Failed to send motor command: {exc}')

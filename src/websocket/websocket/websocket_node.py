@@ -52,11 +52,11 @@ class WebsocketNode(Node):
                     twist_msg.angular.z = -x_offset
 
                     # If control command is the same as previous drop it.
-                    if (self.previous_twist_msg.linear.x != twist_msg.linear.x or
-                        self.previous_twist_msg.angular.z != twist_msg.angular.z):
+                    #if (self.previous_twist_msg.linear.x != twist_msg.linear.x or
+                    #    self.previous_twist_msg.angular.z != twist_msg.angular.z):
 
-                        self.previous_twist_msg.linear.x = twist_msg.linear.x
-                        self.previous_twist_msg.angular.z = twist_msg.angular.z
+                    #self.previous_twist_msg.linear.x = twist_msg.linear.x
+                    #self.previous_twist_msg.angular.z = twist_msg.angular.z
 
                     self.get_logger().info(
                         f"Websocket: Publishing cmd_vel_manual -> "
