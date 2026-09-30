@@ -14,6 +14,8 @@ class DriverNode(Node):
         self.shutdown = False
         self.declare_parameter('port', '/dev/ttyUSB0')
         self.declare_parameter('baudrate', 115200)
+        self.declare_parameter('publish_rate_hz', 10.0)
+        self.declare_parameter('command_timeout_sec', 1.0)
         #self.declare_parameter('publish_rate_hz', 10.0)
         #self.declare_parameter('command_timeout_sec', 1.0)
         self.declare_parameter('invert_motor_1', False) # left front
@@ -142,7 +144,7 @@ class DriverNode(Node):
         # Limit values to maximum values. # Each `speed_X` must be in the range `[-100, 100]`
         self.target_motor_speeds = [self.clamp_motor_value(v) for v in speeds]
 
- #       if self.target_motor_speeds != self.previous_target_motor_speeds:
+#        if self.target_motor_speeds != self.previous_target_motor_speeds:
             #reset_pid_if_needed()
             #pass
 
