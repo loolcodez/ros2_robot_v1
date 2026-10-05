@@ -4,7 +4,7 @@
   <name>power_control</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="huuhaaboxi@protonmail.com">anssi</maintainer>
+  <maintainer email="huuhaaboxi@protonmail.com">noname</maintainer>
   <license>TODO: License declaration</license>
 
   <exec_depend>rclpy</exec_depend>

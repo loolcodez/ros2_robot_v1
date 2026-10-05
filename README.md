@@ -272,12 +272,25 @@ print('stopped:', bot.get_motor_encoder())
 sudo apt update
 sudo apt install python3-websockets
 
-
+cd src
 
 ros2 pkg create --build-type ament_python --node-name power_control power_control
 ros2 pkg create --build-type ament_python --node-name websocket websocket
 ros2 pkg create --build-type ament_python --node-name driver driver
 ros2 pkg create --build-type ament_python --node-name proximity_sensor proximity_sensor
+ros2 pkg create --build-type ament_python --node-name safety safety
+
+
+sudo usermod -aG gpio orangepi
+
+# 1. Luodaan udev-sääntötiedosto GPIO-oikeuksille
+sudo nano /etc/udev/rules.d/99-gpio.rules
+
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", ACTION=="add", PROGRAM="/bin/sh -c 'chown root:gpio /sys/class/gpio/export /sys/class/gpio/unexport ; chmod 220 /sys/class/gpio/export /sys/class/gpio/unexport'"
+SUBSYSTEM=="gpio", KERNEL=="gpio*", ACTION=="add", PROGRAM="/bin/sh -c 'chown root:gpio /sys%p/active_low /sys%p/direction /sys%p/edge /sys%p/value ; chmod 660 /sys%p/active_low /sys%p/direction /sys%p/edge /sys%p/value'"
+
+sudo udevadm control --reload-rules && sudo udevadm trigger
+
 
 cd /home/anssi/Documents/ros2_robot_v1
 rosdep install -i --from-path src --rosdistro jazzy -y
