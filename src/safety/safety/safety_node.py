@@ -34,8 +34,7 @@ class SafetyNode(Node):
         self.range_sub = self.create_subscription(Int32, 'range_data', self.range_callback, 10)
 
         # Kuunnellaan sisääntulevia ohjauskomentoja (joystick, AI jne.)
-        self.cmd_vel_in_sub = self.create_subscription(
-            Twist, 'cmd_vel_in', self.cmd_vel_callback, 10)
+        self.cmd_vel_in_sub = self.create_subscription(Twist, 'cmd_vel_in', self.cmd_vel_callback, 10)
 
         # --- Julkaisijat (Publishers) ---
         # Lähetetään turvatarkastettu komento moottoriohjaimelle
