@@ -1,5 +1,7 @@
 """
-Tämä on erinomainen ja teollisuusstandardien mukainen tapa rakentaa robotin arkkitehtuuri. ROS2-maailmassa tällaista solmua kutsutaan usein nimellä Safety Controller tai Safety Node, ja se toimii portinvartijana (multiplexer/filter) ohjauskomentojen ja moottoriohjaimen välillä.
+Tämä on erinomainen ja teollisuusstandardien mukainen tapa rakentaa robotin arkkitehtuuri. ROS2-maailmassa tällaista solmua kutsutaan usein nimellä Safety Controller tai Safety Node,
+ja se toimii portinvartijana (multiplexer/filter) ohjauskomentojen ja moottoriohjaimen välillä.
+
 Arkkitehtuuri toimii käytännössä näin:
 1. cmd_vel_in (Topic): Ottaa vastaan liikekomentoja joystickiltä, autonomiselta navigoinnilta tai tekoälyltä.
 2. range_data (Topic): Kuuntelee VL53L1X-etäisyysanturia.
@@ -14,59 +16,90 @@ Miltä tämä arkkitehtuuri vaikuttaa? Jos haluat, voimme seuraavaksi katsoa:
 • Pitäisikö peruuttaminen (linear.x < 0) sallia silloinkin, kun edessä on este (kuten koodissa nyt on tehty, jotta robotin saa ajettua pois seinästä)?
 """
 
+import json
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Int32
+from std_msgs.msg import String
 
 class SafetyNode(Node):
     def __init__(self):
         super().__init__('safety_node')
 
-        # --- Konfiguraatio ---
-        self.SAFETY_DISTANCE_MM = 300  # Pysäytysraja millimetreinä
+        # Set speed correction value. Value range received from Joystick is -1 .. 1
+        self.declare_parameter('max_linear', 60.0) # Speed. Must be in the range `[-100, 100]`
+        self.declare_parameter('max_angular', 60.0) # Turning. Must be in the range `[-100, 100]`
 
-        # --- Alustukset ---
-        self.current_distance_mm = 9999  # Oletuksena tie on vapaa
+        self.safety_distance_mm = 300  # Safety distance in millimeters
+        self.current_distance_mm = 9999  # Default range when object is not detected
+        self.sensor = ""
+        self.max_linear = float(self.get_parameter('max_linear').get_parameter_value().double_value)
+        self.max_angular = float(self.get_parameter('max_angular').get_parameter_value().double_value)
 
-        # --- Tilaajat (Subscribers) ---
-        # Kuunnellaan etäisyysanturia
-        self.range_sub = self.create_subscription(Int32, 'range_data', self.range_callback, 10)
+        # Listener distance sensors
+        self.range_sub = self.create_subscription(String, 'range', self.range_callback, 10)
 
-        # Kuunnellaan sisääntulevia ohjauskomentoja (joystick, AI jne.)
-        self.cmd_vel_in_sub = self.create_subscription(Twist, 'cmd_vel_in', self.cmd_vel_callback, 10)
+        # Listener for incoming control commands from joystick and AI
+        self.manual_control_sub = self.create_subscription(String, 'cmd_vel_manual', self.cmd_vel_manual_callback, 10)
 
-        # --- Julkaisijat (Publishers) ---
-        # Lähetetään turvatarkastettu komento moottoriohjaimelle
+        # Publisher for checked command
         self.cmd_vel_out_pub = self.create_publisher(Twist, 'cmd_vel_out', 10)
 
-        self.get_logger().info(f"Safety Node käynnistetty. Turvaraja: {self.SAFETY_DISTANCE_MM} mm.")
+        self.get_logger().info(f"Safety Node started. Safety distance: {self.safety_distance_mm} mm")
 
     def range_callback(self, msg):
-        """Päivittää tuoreimman etäisyystiedon anturilta."""
-        self.current_distance_mm = msg.data
+        """Update latest distance information"""
 
-    def cmd_vel_callback(self, msg):
-        """Tarkastaa sisääntulevan ajokomennon turvallisuuden."""
-        safe_msg = Twist()
+        json_message = json.loads(msg.data)
+        self.sensor = json_message.get('sensor')
+        self.current_distance_mm = json_message.get('distance')
+        self.get_logger().info(f"SafetyNode: Sensor: {self.sensor}, Distance: {self.current_distance_mm} mm")
 
-        # Kopioidaan pyörähdysnopeus (kääntymistä ei yleensä tarvitse estää)
-        safe_msg.angular = msg.angular
+    def cmd_vel_manual_callback(self, msg):
+        """Check safety of incoming drive command"""
 
-        # Tarkastetaan eteenpäin suuntautuva liike (linear.x > 0)
-        if msg.linear.x > 0 and self.current_distance_mm < self.SAFETY_DISTANCE_MM:
-            # ESTE EDESSÄ: Pakotetaan eteenpäin vievä nopeus nollaksi
-            safe_msg.linear.x = 0.0
-            self.get_logger().warn(
-                f"HÄTÄPYSÄYTYS! Este edessä: {self.current_distance_mm} mm. Komento estetty.",
-                throttle_duration_sec=1.0  # Tulostetaan lokiin max kerran sekunnissa
+        # Get control data from JSON message
+        json_message = json.loads(msg.data)
+        self.get_logger().info(f"SafetyNode: Received message: {json_message}")
+        sender = json_message.get('sender')
+        if sender == 'Joystick':
+            # Create standard ROS 2 move message
+            # Minus sign changes direction of movement
+            twist_msg = Twist()
+            twist_msg.linear.x = float(json_message.get('yOffset', 0.0))
+            twist_msg.angular.z = -float(json_message.get('xOffset', 0.0))
+
+            # If control command is the same as previous drop it.
+            #if (self.previous_twist_msg.linear.x != twist_msg.linear.x or
+            #    self.previous_twist_msg.angular.z != twist_msg.angular.z):
+
+            #self.previous_twist_msg.linear.x = twist_msg.linear.x
+            #self.previous_twist_msg.angular.z = twist_msg.angular.z
+
+            self.get_logger().info(
+                f"SafetyNode: received cmd_vel_manual -> "
+                f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
             )
-        else:
-            # Tie on vapaa tai robotti ajaa peruuttamalla (linear.x <= 0)
-            safe_msg.linear.x = msg.linear.x
 
-        # Julkaistaan suodatettu komento moottoreille
-        self.cmd_vel_out_pub.publish(safe_msg)
+            # Add speed correction --> from -1 .. 1 to -60 .. 60
+            twist_msg.linear.x = twist_msg.linear.x * self.max_linear
+            twist_msg.angular.z = -twist_msg.angular.z * self.max_angular
+
+            # Ensure maximum values are not exceed
+            twist_msg.linear.x = max(-self.max_linear, min(self.max_linear, twist_msg.linear.x))
+            twist_msg.angular.z = max(-self.max_angular, min(self.max_angular, twist_msg.angular.z))
+
+            # Store turning speed (No need to prevent turning usually)
+            if twist_msg.linear.x > 0 or twist_msg.linear.x < 0:
+                if self.current_distance_mm < self.safety_distance_mm:
+                    # Road block ahead: Force drive speed to zero
+                    twist_msg.linear.x = 0.0
+                    self.get_logger().warn(
+                        f"Moving stopped! Road blocked: {self.current_distance_mm} mm. Drive command suspended",
+                        throttle_duration_sec=1.0  # Print in log once per second
+                    )
+            # Publish filtered command to driver node
+            self.cmd_vel_out_pub.publish(twist_msg)
 
 def main(args=None):
     rclpy.init(args=args)

@@ -5,7 +5,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist  # Standard message for robot movement
 from std_msgs.msg import Float32, Int32, String
-from std_msgs.msg import Int32MultiArray
+#from std_msgs.msg import Int32MultiArray
 #from odometer import ODOMeter
 
 class DriverNode(Node):
@@ -123,9 +123,9 @@ class DriverNode(Node):
         if self.shutdown is True:
             return
 
-        # Add speed correction --> from -1 .. 1 to -60 .. 60
-        msg.linear.x = msg.linear.x * self.max_linear
-        msg.angular.z = -msg.angular.z * self.max_angular
+        # # Add speed correction --> from -1 .. 1 to -60 .. 60
+        # msg.linear.x = msg.linear.x * self.max_linear
+        # msg.angular.z = -msg.angular.z * self.max_angular
 
         # Differential control X = forward/backward, z = turning)
         left_speed = msg.linear.x - msg.angular.z

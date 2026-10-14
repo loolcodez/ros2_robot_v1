@@ -136,9 +136,10 @@
 ## =======================================
 
 import time
+import json
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Int32
+from std_msgs.msg import Int32, String
 
 # HW library imports
 from periphery import GPIO
@@ -148,20 +149,17 @@ class VL53L1XNode(Node):
     def __init__(self):
         super().__init__('vl53l1x_node')
 
-        self.pub_back_left = self.create_publisher(Int32, 'range/back_left', 10)
-        self.pub_back_right = self.create_publisher(Int32, 'range/back_right', 10)
+        # self.pub_back_left = self.create_publisher(Int32, 'range/back_left', 10)
+        # self.pub_back_right = self.create_publisher(Int32, 'range/back_right', 10)
+        self.pub_range = self.create_publisher(String, 'range', 10)
 
          # Init XSHUT pins and set it OUTPUT-state
          # Both must be LOW (SHUT) (False) in the beginning
         self.get_logger().info("Initializing XSHUT pins...")
         try:
-#            self.xshut_back_left = GPIO(258, "out")   # back-left (Pin 35)
-#            self.xshut_back_right = GPIO(272, "out")  # back-right (Pin 37)
-            self.xshut_back_left = GPIO(272, "out")   # back-left (Pin 37)
-            self.xshut_back_right = GPIO(258, "out")  # back-right (Pin 35)
-            time.sleep(0.5)  # Wait until sensor is ready
+            self.xshut_back_left = GPIO(258, "out")   # back-left (Pin 35)
+            self.xshut_back_right = GPIO(272, "out")  # back-right (Pin 37)
             self.xshut_back_left.write(False) # Set pin low
-            time.sleep(0.5)  # Wait until sensor is ready
             self.xshut_back_right.write(False) # Set pin low
             time.sleep(0.5)  # Wait until sensor is ready
         except Exception as e:
@@ -178,7 +176,7 @@ class VL53L1XNode(Node):
             # ----------------------------------------------------
             self.get_logger().info("Waking up Back-Left sensor...")
             self.xshut_back_left.write(True) # Set pin high
-            time.sleep(2)  # Wait until sensor is ready
+            time.sleep(0.5)  # Wait until sensor is ready
 
             try:
                 # Back-right sensor wakes up using default 0x29 address
@@ -203,17 +201,17 @@ class VL53L1XNode(Node):
             # ----------------------------------------------------
             # Init back-right sensor
             # ----------------------------------------------------
-            self.get_logger().info("Waking up Back-Right sensor...")
-            self.xshut_back_right.write(True) # Set pin high
-            time.sleep(0.5)  # Wait until sensor is ready
+            # self.get_logger().info("Waking up Back-Right sensor...")
+            # self.xshut_back_right.write(True) # Set pin high
+            # time.sleep(0.5)  # Wait until sensor is ready
 
-            # Back-left sensor wakes up using default 0x29 address
-            self.tof_back_right = ToFSensor.VL53L1X(i2c_bus=i2c_bus, i2c_address=0x29)
+            # # Back-left sensor wakes up using default 0x29 address
+            # self.tof_back_right = ToFSensor.VL53L1X(i2c_bus=i2c_bus, i2c_address=0x29)
+            # # # Set measurement profile (1 = Short range, 2 = Long range)
+            # self.tof_back_right.open()
             # # Set measurement profile (1 = Short range, 2 = Long range)
-            self.tof_back_right.open()
-            # Set measurement profile (1 = Short range, 2 = Long range)
-            self.tof_back_right.start_ranging(2)
-            self.get_logger().info("Back-Right initialized successfully on address 0x29!")
+            # self.tof_back_right.start_ranging(2)
+            # self.get_logger().info("Back-Right initialized successfully on address 0x29!")
         except Exception as e:
             self.get_logger().error(f"Sensor sequential initialization failed: {e}")
             #self.cleanup()
@@ -222,37 +220,42 @@ class VL53L1XNode(Node):
         # Create timer which expires after every 0.1 second (10 Hz) and publishes sensor data
 #        self.timer = self.create_timer(0.1, self.read_and_publish)
         self.timer = self.create_timer(1, self.read_and_publish_left)
-        self.timer = self.create_timer(1, self.read_and_publish_right)
+#        self.timer = self.create_timer(1, self.read_and_publish_right)
 
     def read_and_publish_left(self):
         try:
-            # Read distance in millimeters
-            distance_back_left = self.tof_back_left.get_distance()
+            # # Read distance in millimeters
+            # distance_back_left = self.tof_back_left.get_distance()
 
-            # Publish results
-            msg_back_left = Int32()
-            msg_back_left.data = distance_back_left
-            self.pub_back_left.publish(msg_back_left)
+            # # Publish results
+            # msg_back_left = Int32()
+            # msg_back_left.data = distance_back_left
+            # self.pub_back_left.publish(msg_back_left)
+
+            msg_back_left = String()
+            distance_back_left = {"sensor": "back_left", "distance": self.tof_back_left.get_distance()}
+            msg_back_left.data = json.dumps(distance_back_left)
+            self.pub_range.publish(msg_back_left.data)
 
             self.get_logger().info(f"L: {distance_back_left} mm")
 
         except Exception as e:
             self.get_logger().error(f"Error reading sensors: {e}")
 
-    def read_and_publish_right(self):
-        try:
-            # Read distance in millimeters
-            distance_back_right = self.tof_back_right.get_distance()
+    # def read_and_publish_right(self):
+    #     try:
+    #         # Read distance in millimeters
+    #         distance_back_right = self.tof_back_right.get_distance()
 
-            # Publish results
-            msg_back_right = Int32()
-            msg_back_right.data = distance_back_right
-            self.pub_back_right.publish(msg_back_right)
+    #         # Publish results
+    #         msg_back_right = Int32()
+    #         msg_back_right.data = distance_back_right
+    #         self.pub_back_right.publish(msg_back_right)
 
-            self.get_logger().info(f"R: {distance_back_right} mm")
+    #         self.get_logger().info(f"R: {distance_back_right} mm")
 
-        except Exception as e:
-            self.get_logger().error(f"Error reading sensors: {e}")
+    #     except Exception as e:
+    #         self.get_logger().error(f"Error reading sensors: {e}")
 
     # def read_and_publish(self):
     #     try:

@@ -1,22 +1,23 @@
 import asyncio
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist # Standard message for robot movement
+#from geometry_msgs.msg import Twist # Standard message for robot movement
 from std_msgs.msg import String
 import websockets
-import json
+#import json
 
 class WebsocketNode(Node):
 
     def __init__(self):
         super().__init__("websocket")
         self.port = 6789
-        self.previous_twist_msg = Twist()
-        self.previous_twist_msg.linear.x = -100
-        self.previous_twist_msg.angular.z = -100
+#        self.previous_twist_msg = Twist()
+#        self.previous_twist_msg.linear.x = -100
+#        self.previous_twist_msg.angular.z = -100
 
         # Create Publisher for command coming from websocket
-        self.move_command_publisher = self.create_publisher(Twist, 'cmd_vel_manual', 10)
+#        self.move_command_publisher = self.create_publisher(Twist, 'cmd_vel_manual', 10)
+        self.move_command_publisher = self.create_publisher(String, 'cmd_vel_manual', 10)
 
         # Create subscriber for battery status
         self.battery_status_subscription = self.create_subscription(String, '/power/battery_status', self.forward_battery_status, 10)
@@ -39,32 +40,39 @@ class WebsocketNode(Node):
 
         try:
             async for json_message in websocket:
-                json_message = json.loads(json_message)
+                msg = String()
+                msg.data = json_message
                 self.get_logger().info(f"Websocket: Received message: {json_message}")
-                sender = json_message.get('sender')
-                if sender == 'Joystick':
-                    # Create standard ROS 2 move message
-                    x_offset = float(json_message.get('xOffset', 0.0))
-                    y_offset = float(json_message.get('yOffset', 0.0))
-                    # Minus sign changes direction of movement
-                    twist_msg = Twist()
-                    twist_msg.linear.x = y_offset
-                    twist_msg.angular.z = -x_offset
 
-                    # If control command is the same as previous drop it.
-                    #if (self.previous_twist_msg.linear.x != twist_msg.linear.x or
-                    #    self.previous_twist_msg.angular.z != twist_msg.angular.z):
+                # Publish the command
+                self.move_command_publisher.publish(msg)
 
-                    #self.previous_twist_msg.linear.x = twist_msg.linear.x
-                    #self.previous_twist_msg.angular.z = twist_msg.angular.z
+                # json_message = json.loads(json_message)
+                # self.get_logger().info(f"Websocket: Received message: {json_message}")
+                # sender = json_message.get('sender')
+                # if sender == 'Joystick':
+                #     # Create standard ROS 2 move message
+                #     x_offset = float(json_message.get('xOffset', 0.0))
+                #     y_offset = float(json_message.get('yOffset', 0.0))
+                #     # Minus sign changes direction of movement
+                #     twist_msg = Twist()
+                #     twist_msg.linear.x = y_offset
+                #     twist_msg.angular.z = -x_offset
 
-                    self.get_logger().info(
-                        f"Websocket: Publishing cmd_vel_manual -> "
-                        f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
-                    )
+                #     # If control command is the same as previous drop it.
+                #     #if (self.previous_twist_msg.linear.x != twist_msg.linear.x or
+                #     #    self.previous_twist_msg.angular.z != twist_msg.angular.z):
 
-                    # Publish the command
-                    self.move_command_publisher.publish(twist_msg)
+                #     #self.previous_twist_msg.linear.x = twist_msg.linear.x
+                #     #self.previous_twist_msg.angular.z = twist_msg.angular.z
+
+                #     self.get_logger().info(
+                #         f"Websocket: Publishing cmd_vel_manual -> "
+                #         f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
+                #     )
+
+                # Publish the command
+                #self.move_command_publisher.publish(twist_msg)
         except websockets.exceptions.ConnectionClosed:
             pass
         finally:
