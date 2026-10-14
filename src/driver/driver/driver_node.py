@@ -33,20 +33,19 @@ class DriverNode(Node):
         self.target_motor_speeds: list[float] = [0.0] * 4
         self.previous_target_motor_speeds: list[float] = [0.0] * 4
 
-        self.port = self.get_parameter('port').value
-        self.baudrate = int(self.get_parameter('baudrate').value)
+        self.port = self.get_parameter('port').get_parameter_value().string_value
+        self.baudrate = self.get_parameter('baudrate').get_parameter_value().integer_value
         #self.publish_rate_hz = float(self.get_parameter('publish_rate_hz').value)
         #self.command_timeout_sec = float(self.get_parameter('command_timeout_sec').value)
 
         self.invert = [
-            bool(self.get_parameter('invert_motor_1').value), # left front
-            bool(self.get_parameter('invert_motor_2').value), # right front
-            bool(self.get_parameter('invert_motor_3').value), # left_rear
-            bool(self.get_parameter('invert_motor_4').value), # right rear
+            bool(self.get_parameter('invert_motor_1').get_parameter_value().bool_value), # left front
+            bool(self.get_parameter('invert_motor_2').get_parameter_value().bool_value), # right front
+            bool(self.get_parameter('invert_motor_3').get_parameter_value().bool_value), # left_rear
+            bool(self.get_parameter('invert_motor_4').get_parameter_value().bool_value), # right rear
         ]
-
-        self.max_linear = float(self.get_parameter('max_linear').value)
-        self.max_angular = float(self.get_parameter('max_angular').value)
+        self.max_linear = float(self.get_parameter('max_linear').get_parameter_value().double_value)
+        self.max_angular = float(self.get_parameter('max_angular').get_parameter_value().double_value)
 
         self.driver = None
         #self.odometer = ODOMeter()
@@ -58,7 +57,7 @@ class DriverNode(Node):
         self.manual_control_sub = self.create_subscription(message, 'cmd_vel_manual', self.handle_speed_control_command, 10)
         self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
         self.power_alert_sub = self.create_subscription(Int32, '/power/alert', self.beep, 10)
-        self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.destroy_node, 10)
+        self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
         #self.encoder_pub = self.create_publisher(Int32MultiArray, '/wheel_encoders', 10)
 
         if not self.initialize_driver():
@@ -152,9 +151,9 @@ class DriverNode(Node):
 
     def handle_encoders(self):
         current_encoders = self.read_wheel_encoders()
-        delta_encoders = [curr - prev for curr, prev in zip(current_encoders, self.previous_encoders)]
+        delta_encoders = [curr - prev for curr, prev in zip(current_encoders, self.previous_encoders)] # type: ignore
 
-        self.previous_encoders = current_encoders
+        self.previous_encoders = current_encoders # type: ignore
         current_motor_speeds = self.calculate_wheel_speeds(delta_encoders, self.encoding_time_ms)
 
         motors = [0, 1, 2, 3]
@@ -176,7 +175,7 @@ class DriverNode(Node):
         speeds = [delta * wheel_factor for delta in delta_encoders]
         return speeds
 
-    def read_wheel_encoders(self) -> None:
+    def read_wheel_encoders(self):
         if self.driver is None:
             self.get_logger().warning("Driver: self.driver is None")
             return
@@ -192,7 +191,7 @@ class DriverNode(Node):
         except Exception as exc:
             self.get_logger().warning(f'Driver: Failed to read motor encoders: {exc}')
 
-    def pid_control(self, target_speed, current_speed):
+    def pid_control(self, target_speed, current_speed) -> float:
         # Simple P control (add later I and D if needed):
         Kp = 0.5
         error = target_speed - current_speed
@@ -219,14 +218,17 @@ class DriverNode(Node):
     def clamp_motor_value(value: float) -> float:
         return max(-100.0, min(100.0, value))
 
-    def destroy_node(self, string_msg) -> bool:
-        self.get_logger().info(string_msg.data)
+    def shutdown_callback(self, string_msg) -> None:
+        self.get_logger().info(f"Shutdown trigger received: {string_msg.data}")
+        self.stop_motors_and_destroy()
+
+    def stop_motors_and_destroy(self) -> None:
         try:
             self.get_logger().info('Driver: Stopping motors before shutdown')
             self.set_motor_speeds([0, 0, 0, 0])
-        except Exception:
-            pass
-        return super().destroy_node()
+        except Exception as e:
+            self.get_logger().error(f"Failed to stop motors: {e}")
+        super().destroy_node()
 
     def publish_battery(self) -> None:
         if self.driver is None:
@@ -250,9 +252,8 @@ def main(args=None):
         pass
     finally:
         if node is not None:
-            shutdown_msg = String()
-            shutdown_msg.data = "Startup failure"
-            node.destroy_node(shutdown_msg)
+            node.get_logger().info("Startup failure - shutting down")
+            node.stop_motors_and_destroy()
         rclpy.shutdown()
 
 if __name__ == '__main__':

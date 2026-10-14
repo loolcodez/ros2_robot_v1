@@ -272,12 +272,26 @@ print('stopped:', bot.get_motor_encoder())
 sudo apt update
 sudo apt install python3-websockets
 
-
+cd src
 
 ros2 pkg create --build-type ament_python --node-name power_control power_control
 ros2 pkg create --build-type ament_python --node-name websocket websocket
 ros2 pkg create --build-type ament_python --node-name driver driver
+ros2 pkg create --build-type ament_python --node-name light_control light_control
 ros2 pkg create --build-type ament_python --node-name proximity_sensor proximity_sensor
+ros2 pkg create --build-type ament_python --node-name safety safety
+
+
+sudo usermod -aG gpio orangepi
+
+# 1. Luodaan udev-sääntötiedosto GPIO-oikeuksille
+sudo nano /etc/udev/rules.d/99-gpio.rules
+
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", ACTION=="add", PROGRAM="/bin/sh -c 'chown root:gpio /sys/class/gpio/export /sys/class/gpio/unexport ; chmod 220 /sys/class/gpio/export /sys/class/gpio/unexport'"
+SUBSYSTEM=="gpio", KERNEL=="gpio*", ACTION=="add", PROGRAM="/bin/sh -c 'chown root:gpio /sys%p/active_low /sys%p/direction /sys%p/edge /sys%p/value ; chmod 660 /sys%p/active_low /sys%p/direction /sys%p/edge /sys%p/value'"
+
+sudo udevadm control --reload-rules && sudo udevadm trigger
+
 
 cd /home/anssi/Documents/ros2_robot_v1
 rosdep install -i --from-path src --rosdistro jazzy -y
@@ -289,6 +303,7 @@ cd ~/Documents/ros2_robot_v1
 source /opt/ros/jazzy/setup.bash
 colcon build --symlink-install
 
+
 source install/setup.bash
 ros2 launch driver robot.launch.py
 
@@ -299,5 +314,13 @@ source install/setup.bash
 ros2 launch proximity_sensor proximity_sensor.launch.py
 ros2 run proximity_sensor proximity_sensor
 
+sudo i2cdetect -y 0
+
 # Asennetaan paketit suoraan viralliseen järjestelmäpolkuun, jota ROS 2 ei voi ohittaa
 sudo pip install smbus2 vl53l1x python-periphery --target=/usr/lib/python3/dist-packages --break-system-packages
+
+
+Run only light control test
+source install/setup.bash
+ros2 launch light_control light_control.launch.py
+ros2 run light_control light_control
