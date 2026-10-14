@@ -5,6 +5,7 @@
 # ros2 topic pub --once /cmd_lights std_msgs/msg/String "{data: 'lights/back_off'}"
 # ros2 topic pub --once /cmd_lights std_msgs/msg/String "{data: 'lights/emergency_on'}"
 # ros2 topic pub --once /cmd_lights std_msgs/msg/String "{data: 'lights/emergency_off'}"
+# ros2 topic pub --once /cmd_lights std_msgs/msg/String "{data: 'lights/all_off'}"
 
 # Listen
 # ros2 topic echo /lights_status
@@ -27,12 +28,13 @@ GPIO_PINS = {
 }
 
 class LightState(Enum):
-    LIGHT_ON = 1
-    LIGHT_OFF = 2
-    LIGHT_BLINKING = 3
+    ON = 1
+    OFF = 2
+    BLINKING_AND_ON = 3
+    BLINKING_AND_OFF = 4
 
 class Light:
-    def __init__(self, name: str, gpio_pin: int, initial_state: LightState = LightState.LIGHT_OFF):
+    def __init__(self, name: str, gpio_pin: int, initial_state: LightState = LightState.OFF):
         self.name: Final[str] = name
         self.gpio_pin: Final[int] = gpio_pin
         self.state: LightState = initial_state
@@ -44,20 +46,15 @@ class Light:
 
         # If pin initialized successfully, write pin value
         if self.gpio_object is not None:
-            if new_state == LightState.LIGHT_ON:
+            if new_state == LightState.ON:
                 self.gpio_object.write(True)
-            elif new_state == LightState.LIGHT_OFF:
+            elif new_state == LightState.OFF:
                 self.gpio_object.write(False)
-            elif new_state == LightState.LIGHT_BLINKING:
+            elif new_state == LightState.BLINKING_AND_ON:
+                self.gpio_object.write(True)
+            elif new_state == LightState.BLINKING_AND_OFF:
                 self.gpio_object.write(False)
         print(f"Light '{self.name}' (GPIO {self.gpio_pin}) changed to: {self.state.name}")
-
-    # def read_pin_state(self) -> bool:
-    #     if self.gpio_object is not None:
-    #         pin_value = self.gpio_object.read()
-    #         print(f"Light '{self.name}' (GPIO {self.gpio_pin}) value: {pin_value}")
-    #         return pin_value
-    #     return False
 
 class LightsControlNode(Node):
     def __init__(self):
@@ -70,9 +67,10 @@ class LightsControlNode(Node):
         # "lights/back_off"
         # "lights/emergency_on"
         # "lights/emergency_off"
+        # "lights/all_off"
         self.command_sub = self.create_subscription(String, 'cmd_lights', self.command_callback, 10)
 
-        #self.status_pub = self.create_publisher(String, 'lights_status', 10)
+        self.status_pub = self.create_publisher(String, 'lights_status', 10)
 
         self.lights : Dict[str, Light] = {
             'front_left': Light("Front Left", GPIO_PINS['front_left']),
@@ -94,7 +92,7 @@ class LightsControlNode(Node):
                 # Store GPIO object in Light object
                 light_object.gpio_object = GPIO(light_object.gpio_pin, "out")
                 # Set initial state LOW/OFF
-                light_object.set_pin_state(LightState.LIGHT_OFF)
+                light_object.set_pin_state(LightState.OFF)
             except Exception as e:
                 self.get_logger().error(f'Failed to set name {name}, pin {light_object.gpio_pin} as output: {e}')
 
@@ -106,37 +104,51 @@ class LightsControlNode(Node):
         self.lights['back_left'].set_pin_state(new_state)
         self.lights['back_right'].set_pin_state(new_state)
 
-    def set_emergency_lights(self, new_state: LightState):
-        for name in self.lights:
-            self.set_light(name, new_state)
+    def set_emergency_lights_on(self):
+        for name, light_object in self.lights.items():
+            if light_object.state == LightState.ON:
+                self.set_light(name, LightState.BLINKING_AND_ON)
+            elif light_object.state == LightState.OFF:
+                self.set_light(name, LightState.BLINKING_AND_OFF)
+
+    def set_emergency_lights_off(self):
+        for name, light_object in self.lights.items():
+            if light_object.state == LightState.BLINKING_AND_ON:
+                self.set_light(name, LightState.ON)
+            elif light_object.state == LightState.BLINKING_AND_OFF:
+                self.set_light(name, LightState.OFF)
+
+    def set_all_lights_off(self):
+        self.light_blinking = False
+        for name, _ in self.lights.items():
+            self.set_light(name, LightState.OFF)
 
     def set_light(self, name, new_state: LightState):
         self.lights[name].set_pin_state(new_state)
-        #self.set_pin_value(self.lights[name].gpio_pin, new_state)
 
     def command_callback(self, msg: String):
         cmd = msg.data.lower()
         self.get_logger().info(f"Received command: {cmd}")
         if cmd == "lights/front_on":
             self.get_logger().info("Front lights ON")
-            self.set_front_lights(LightState.LIGHT_ON)
+            self.set_front_lights(LightState.ON)
             return
         if cmd == "lights/front_off":
             self.get_logger().info("Front lights OFF")
-            self.set_front_lights(LightState.LIGHT_OFF)
+            self.set_front_lights(LightState.OFF)
             return
         if cmd == "lights/back_on":
             self.get_logger().info("Back lights ON")
-            self.set_back_lights(LightState.LIGHT_ON)
+            self.set_back_lights(LightState.ON)
             return
         if cmd == "lights/back_off":
             self.get_logger().info("Back lights OFF")
-            self.set_back_lights(LightState.LIGHT_OFF)
+            self.set_back_lights(LightState.OFF)
             return
         if cmd == "lights/emergency_on":
             if self.light_blinking is False:
                 self.get_logger().info("Emergency lights ON")
-                self.set_emergency_lights(LightState.LIGHT_BLINKING)
+                self.set_emergency_lights_on()
                 self.light_blinking = True
                 self.start_blinking()
             return
@@ -144,10 +156,12 @@ class LightsControlNode(Node):
             if self.light_blinking is True:
                 self.get_logger().info("Emergency lights OFF")
                 self.light_blinking = False
-                self.set_emergency_lights(LightState.LIGHT_OFF)
+                self.set_emergency_lights_off()
             return
-        else:
-            self.get_logger().error(f"Unkonwn command: {cmd}")
+        if cmd == "lights/all_off":
+            self.get_logger().info("All lights OFF")
+            self.set_all_lights_off()
+        self.get_logger().error(f"Unknown light setting command: {cmd}")
 
     def start_blinking(self):
         self.blink_thread = Thread(target=self._blink_loop)
@@ -160,8 +174,9 @@ class LightsControlNode(Node):
             state_toggle = not state_toggle  # Changes between True ja False
 
             for _, light in self.lights.items():
-                if light.state == LightState.LIGHT_BLINKING and light.gpio_object is not None:
-                    light.gpio_object.write(state_toggle)
+                if light.gpio_object is not None:
+                    if light.state in (LightState.BLINKING_AND_ON, LightState.BLINKING_AND_OFF):
+                        light.gpio_object.write(state_toggle)
             time.sleep(0.5) # Blink rate 0.5s ON and OFF
 
     def publish_status(self):
@@ -181,7 +196,7 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        node.stop_blinking()
+        node .set_all_lights_off()
         node.destroy_node()
         rclpy.shutdown()
 
