@@ -17,7 +17,7 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='anssi',
+    maintainer='orangepi',
     maintainer_email='huuhaaboxi@protonmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',
