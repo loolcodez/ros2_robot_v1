@@ -293,7 +293,7 @@ SUBSYSTEM=="gpio", KERNEL=="gpio*", ACTION=="add", PROGRAM="/bin/sh -c 'chown ro
 sudo udevadm control --reload-rules && sudo udevadm trigger
 
 
-cd /home/anssi/Documents/ros2_robot_v1
+cd /home/orangepi/Documents/ros2_robot_v1
 rosdep install -i --from-path src --rosdistro jazzy -y
 
 

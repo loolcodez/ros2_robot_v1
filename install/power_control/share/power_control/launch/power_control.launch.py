@@ -1,0 +1,1 @@
+/home/orangepi/Documents/robot/ros2_robot_v1/build/power_control/launch/power_control.launch.py

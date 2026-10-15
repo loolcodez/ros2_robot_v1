@@ -1,21 +1,3 @@
-"""
-Tämä on erinomainen ja teollisuusstandardien mukainen tapa rakentaa robotin arkkitehtuuri. ROS2-maailmassa tällaista solmua kutsutaan usein nimellä Safety Controller tai Safety Node,
-ja se toimii portinvartijana (multiplexer/filter) ohjauskomentojen ja moottoriohjaimen välillä.
-
-Arkkitehtuuri toimii käytännössä näin:
-1. cmd_vel_in (Topic): Ottaa vastaan liikekomentoja joystickiltä, autonomiselta navigoinnilta tai tekoälyltä.
-2. range_data (Topic): Kuuntelee VL53L1X-etäisyysanturia.
-3. cmd_vel_out (Topic): Lähettää sallitut tai korjatut komennot eteenpäin varsinaiselle moottoriohjaimelle.
-
-Miten kytket tämän osaksi järjestelmää?
-Jotta tämä toimii, sinun täytyy muuttaa muiden solmujesi asetuksia:
-1. Konfiguroi joystick-ohjelmasi tai tekoälysi julkaisemaan topikkiin cmd_vel_in (aiemman cmd_vel sijaan).
-2. Konfiguroi moottoriohjainsolmasi kuuntelemaan topikkia cmd_vel_out.
-Miltä tämä arkkitehtuuri vaikuttaa? Jos haluat, voimme seuraavaksi katsoa:
-• Miten tämä solmu lisätään proximity_sensor.launch.py-käynnistystiedostoosi, jotta se nousee automaattisesti pystyyn.
-• Pitäisikö peruuttaminen (linear.x < 0) sallia silloinkin, kun edessä on este (kuten koodissa nyt on tehty, jotta robotin saa ajettua pois seinästä)?
-"""
-
 import json
 import rclpy
 from rclpy.node import Node
@@ -33,11 +15,15 @@ class SafetyNode(Node):
         self.safety_distance_mm = 300  # Safety distance in millimeters
         self.current_distance_mm = 9999  # Default range when object is not detected
         self.sensor = ""
+        self.power_speed_limit_factor = 1
         self.max_linear = float(self.get_parameter('max_linear').get_parameter_value().double_value)
         self.max_angular = float(self.get_parameter('max_angular').get_parameter_value().double_value)
 
         # Listener distance sensors
         self.range_sub = self.create_subscription(String, 'range', self.range_callback, 10)
+
+        # Listener for power alets
+        self.power_alert_sub = self.create_subscription(String, '/power/alert', self.power_alert_callback, 10)
 
         # Listener for incoming control commands from joystick and AI
         self.manual_control_sub = self.create_subscription(String, 'cmd_vel_manual', self.cmd_vel_manual_callback, 10)
@@ -46,6 +32,16 @@ class SafetyNode(Node):
         self.cmd_vel_out_pub = self.create_publisher(Twist, 'cmd_vel_out', 10)
 
         self.get_logger().info(f"Safety Node started. Safety distance: {self.safety_distance_mm} mm")
+
+    def power_alert_callback(self, msg):
+        """ Handler low power state"""
+
+        if msg.data == "Low":
+            self.power_speed_limit_factor = 0.5
+
+        if msg.data == "Very Low" or msg.data is "Critical":
+            self.power_speed_limit_factor = 0
+
 
     def range_callback(self, msg):
         """Update latest distance information"""
@@ -81,7 +77,7 @@ class SafetyNode(Node):
                 f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
             )
 
-            # Add speed correction --> from -1 .. 1 to -60 .. 60
+            # Add speed correction factor --> from -1 .. 1 to -60 .. 60
             twist_msg.linear.x = twist_msg.linear.x * self.max_linear
             twist_msg.angular.z = -twist_msg.angular.z * self.max_angular
 
@@ -89,11 +85,15 @@ class SafetyNode(Node):
             twist_msg.linear.x = max(-self.max_linear, min(self.max_linear, twist_msg.linear.x))
             twist_msg.angular.z = max(-self.max_angular, min(self.max_angular, twist_msg.angular.z))
 
-            # Store turning speed (No need to prevent turning usually)
+            # Reduce speed when battery gets low
+            twist_msg.linear.x = twist_msg.linear.x * self.power_speed_limit_factor
+            twist_msg.angular.z = twist_msg.angular.z * self.power_speed_limit_factor
+
             if twist_msg.linear.x > 0 or twist_msg.linear.x < 0:
                 if self.current_distance_mm < self.safety_distance_mm:
                     # Road block ahead: Force drive speed to zero
                     twist_msg.linear.x = 0.0
+                    twist_msg.angular.z = 0.0 # No need to prevent turning usually
                     self.get_logger().warn(
                         f"Moving stopped! Road blocked: {self.current_distance_mm} mm. Drive command suspended",
                         throttle_duration_sec=1.0  # Print in log once per second

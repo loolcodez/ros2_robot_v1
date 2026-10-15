@@ -54,7 +54,8 @@ class DriverNode(Node):
         float(message.linear.x)
         float(message.angular.z)
 
-        self.manual_control_sub = self.create_subscription(message, 'cmd_vel_manual', self.handle_speed_control_command, 10)
+        #self.manual_control_sub = self.create_subscription(message, 'cmd_vel_manual', self.handle_speed_control_command, 10)
+        self.manual_control_sub = self.create_subscription(message, 'cmd_vel_out', self.handle_speed_control_command, 10)
         self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
         self.power_alert_sub = self.create_subscription(Int32, '/power/alert', self.beep, 10)
         self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
@@ -121,6 +122,7 @@ class DriverNode(Node):
     def handle_speed_control_command(self, msg):
         self.get_logger().info(f"Driver: linear.x={msg.linear.x:.2f}, angular.z={msg.angular.z:.2f}")
         if self.shutdown is True:
+            self.get_logger().info("Driver: shutdown")
             return
 
         # # Add speed correction --> from -1 .. 1 to -60 .. 60
@@ -161,9 +163,9 @@ class DriverNode(Node):
             self.target_motor_speeds[motor] + self.pid_control(self.target_motor_speeds[motor], current_motor_speeds[motor])
             for motor in motors
         ]
-        self.get_logger().info(f"Driver: corrected_motor_speeds: {
-            corrected_motor_speeds[0], corrected_motor_speeds[1],
-            corrected_motor_speeds[2], corrected_motor_speeds[3]}")
+        # self.get_logger().info(f"Driver: corrected_motor_speeds: {
+        #     corrected_motor_speeds[0], corrected_motor_speeds[1],
+        #     corrected_motor_speeds[2], corrected_motor_speeds[3]}")
 
         # Limit values to maximum values. # Each `speed_X` must be in the range `[-100, 100]`
         corrected_motor_speeds = [self.clamp_motor_value(v) for v in corrected_motor_speeds]
@@ -182,7 +184,7 @@ class DriverNode(Node):
 
         try:
             encoders = self.driver.get_motor_encoder()
-            self.get_logger().info(f"Driver: Encoders: {encoders[0], encoders[1], encoders[2], encoders[3]}")
+#            self.get_logger().info(f"Driver: Encoders: {encoders[0], encoders[1], encoders[2], encoders[3]}")
             #self.odometer.process_encoders(encoders)
             #msg = Int32MultiArray()
             #msg.data = [int(v) for v in encoders]
