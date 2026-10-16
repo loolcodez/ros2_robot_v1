@@ -248,7 +248,8 @@ class VL53L1XNode(Node):
             self.history_back_left.append(distance)
 
             # Calculate moving average of 10 last measurements. # Round to zero decimal
-            moving_average = round(sum(self.history_back_left) / sum(self.history_back_left) / len(self.history_back_left),0)
+            moving_average = round(sum(self.history_back_left) / len(self.history_back_left),0)
+            moving_average = round(sum(self.history_back_left) / len(self.history_back_left),0)
 
             msg_back_left = String()
             distance_back_left = {"sensor": "back_left", "distance": moving_average}
