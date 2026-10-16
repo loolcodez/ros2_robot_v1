@@ -1,21 +1,3 @@
-"""
-Tämä on erinomainen ja teollisuusstandardien mukainen tapa rakentaa robotin arkkitehtuuri. ROS2-maailmassa tällaista solmua kutsutaan usein nimellä Safety Controller tai Safety Node,
-ja se toimii portinvartijana (multiplexer/filter) ohjauskomentojen ja moottoriohjaimen välillä.
-
-Arkkitehtuuri toimii käytännössä näin:
-1. cmd_vel_in (Topic): Ottaa vastaan liikekomentoja joystickiltä, autonomiselta navigoinnilta tai tekoälyltä.
-2. range_data (Topic): Kuuntelee VL53L1X-etäisyysanturia.
-3. cmd_vel_out (Topic): Lähettää sallitut tai korjatut komennot eteenpäin varsinaiselle moottoriohjaimelle.
-
-Miten kytket tämän osaksi järjestelmää?
-Jotta tämä toimii, sinun täytyy muuttaa muiden solmujesi asetuksia:
-1. Konfiguroi joystick-ohjelmasi tai tekoälysi julkaisemaan topikkiin cmd_vel_in (aiemman cmd_vel sijaan).
-2. Konfiguroi moottoriohjainsolmasi kuuntelemaan topikkia cmd_vel_out.
-Miltä tämä arkkitehtuuri vaikuttaa? Jos haluat, voimme seuraavaksi katsoa:
-• Miten tämä solmu lisätään proximity_sensor.launch.py-käynnistystiedostoosi, jotta se nousee automaattisesti pystyyn.
-• Pitäisikö peruuttaminen (linear.x < 0) sallia silloinkin, kun edessä on este (kuten koodissa nyt on tehty, jotta robotin saa ajettua pois seinästä)?
-"""
-
 import json
 import rclpy
 from rclpy.node import Node
