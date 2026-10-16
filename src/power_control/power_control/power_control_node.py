@@ -25,10 +25,19 @@ class PowerControlNode(Node):
             status = "Good"
         if moving_average < 11.2:
             status = "Low"
+            msg = String()
+            msg.data = status
+            self.power_alert_pud.publish(msg)
         if moving_average < 11.0:
             status = "Very Low"
+            msg = String()
+            msg.data = status
+            self.power_alert_pud.publish(msg)
         if moving_average < 10.8:
             status = "Critical"
+            msg = String()
+            msg.data = status
+            self.power_alert_pud.publish(msg)
         if moving_average < 10.6:
             status = "Shutdown"
             msg = String()
