@@ -48,6 +48,7 @@ class SafetyNode(Node):
             self.speed_limit_factor = 0.5
         if msg.data in ("Very Low", "Critical"):
             self.speed_limit_factor = 0.0
+        self.get_logger().info(f"SafetyNode: speed_limit_factor: {self.speed_limit_factor}")
 
     def cmd_vel_manual_callback(self, msg):
         """Check safety of incoming drive command"""
@@ -92,10 +93,16 @@ class SafetyNode(Node):
                 if self.current_distance_mm < self.safety_distance_mm:
                     # Road block ahead: Force drive speed to zero
                     twist_msg.linear.x = 0.0
+                    twist_msg.angular.z = 0.0 # Turning may not need to be limited
                     self.get_logger().warn(
                         f"SafetyNode: Moving stopped! Road blocked: {self.current_distance_mm} mm. Drive command suspended",
                         throttle_duration_sec=1.0  # Print in log once per second
                     )
+            self.get_logger().info(
+                f"SafetyNode: sending cmd_vel_out -> "
+                f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
+            )
+
             # Publish filtered command to driver node
             self.cmd_vel_out_pub.publish(twist_msg)
 
