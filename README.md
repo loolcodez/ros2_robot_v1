@@ -280,7 +280,8 @@ ros2 pkg create --build-type ament_python --node-name driver driver
 ros2 pkg create --build-type ament_python --node-name light_control light_control
 ros2 pkg create --build-type ament_python --node-name proximity_sensor proximity_sensor
 ros2 pkg create --build-type ament_python --node-name safety safety
-
+ros2 pkg create --build-type ament_python --node-name odometer odometer
+ros2 pkg create --build-type ament_python --node-name odometer odometer
 
 sudo usermod -aG gpio orangepi
 
@@ -307,17 +308,24 @@ colcon build --symlink-install
 source install/setup.bash
 ros2 launch robot_bringup robot.launch.py
 
-# Run only light control test
+# Run only light control
 source install/setup.bash
 ros2 launch light_control light_control.launch.py
 
-# Run only driver test
+source install/setup.bash
+ros2 launch proximity_sensor proximity_sensor.launch.py
+
+# Run only odometer
+source install/setup.bash
+ros2 launch odometer odometer.launch.py
+
+# Run only proximity sensor test
+
+# Run only driver
 source install/setup.bash
 ros2 launch driver driver.launch.py
 
-# Run only proximity sensor test
-source install/setup.bash
-ros2 launch proximity_sensor proximity_sensor.launch.py
+# Run only proximity sensor
 
 sudo i2cdetect -y 0
 

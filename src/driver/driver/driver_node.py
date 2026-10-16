@@ -4,9 +4,7 @@ from typing import List
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist  # Standard message for robot movement
-from std_msgs.msg import Float32, Int32, String
-#from std_msgs.msg import Int32MultiArray
-#from odometer import ODOMeter
+from std_msgs.msg import Float32, Int32, String, Int32MultiArray
 
 class DriverNode(Node):
     def __init__(self):
@@ -58,7 +56,7 @@ class DriverNode(Node):
         self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
         self.power_alert_sub = self.create_subscription(Int32, '/power/alert', self.beep, 10)
         self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
-        #self.encoder_pub = self.create_publisher(Int32MultiArray, '/wheel_encoders', 10)
+        self.encoder_pub = self.create_publisher(Int32MultiArray, '/wheel_encoders', 10)
 
         if not self.initialize_driver():
             self.get_logger().error('Failed to initialize Rosmaster driver')
@@ -123,10 +121,6 @@ class DriverNode(Node):
         if self.shutdown is True:
             return
 
-        # # Add speed correction --> from -1 .. 1 to -60 .. 60
-        # msg.linear.x = msg.linear.x * self.max_linear
-        # msg.angular.z = -msg.angular.z * self.max_angular
-
         # Differential control X = forward/backward, z = turning)
         left_speed = msg.linear.x - msg.angular.z
         right_speed = msg.linear.x + msg.angular.z
@@ -178,18 +172,18 @@ class DriverNode(Node):
     def read_wheel_encoders(self):
         if self.driver is None:
             self.get_logger().warning("Driver: self.driver is None")
-            return
+            return None
 
         try:
             encoders = self.driver.get_motor_encoder()
             self.get_logger().info(f"Driver: Encoders: {encoders[0], encoders[1], encoders[2], encoders[3]}")
-            #self.odometer.process_encoders(encoders)
-            #msg = Int32MultiArray()
-            #msg.data = [int(v) for v in encoders]
-            #self.encoder_pub.publish(msg)
+            msg = Int32MultiArray()
+            msg.data = [int(v) for v in encoders]
+            self.encoder_pub.publish(msg)
             return encoders
         except Exception as exc:
             self.get_logger().warning(f'Driver: Failed to read motor encoders: {exc}')
+            return None
 
     def pid_control(self, target_speed, current_speed) -> float:
         # Simple P control (add later I and D if needed):
