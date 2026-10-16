@@ -8,6 +8,8 @@ class SafetyNode(Node):
     def __init__(self):
         super().__init__('safety_node')
 
+        self.speed_limit_factor = 1
+
         # Set speed correction value. Value range received from Joystick is -1 .. 1
         self.declare_parameter('max_linear', 60.0) # Speed. Must be in the range `[-100, 100]`
         self.declare_parameter('max_angular', 60.0) # Turning. Must be in the range `[-100, 100]`
@@ -24,6 +26,9 @@ class SafetyNode(Node):
         # Listener for incoming control commands from joystick and AI
         self.manual_control_sub = self.create_subscription(String, 'cmd_vel_manual', self.cmd_vel_manual_callback, 10)
 
+        # Listener for power alert
+        self.power_alert_sub = self.create_subscription(String, '/power/alert', self.power_alert_callback, 10)
+
         # Publisher for checked command
         self.cmd_vel_out_pub = self.create_publisher(Twist, 'cmd_vel_out', 10)
 
@@ -36,6 +41,13 @@ class SafetyNode(Node):
         self.sensor = json_message.get('sensor')
         self.current_distance_mm = json_message.get('distance')
         self.get_logger().info(f"SafetyNode: Sensor: {self.sensor}, Distance: {self.current_distance_mm} mm")
+
+    def power_alert_callback(self, msg):
+        self.speed_limit_factor = 1
+        if msg.data == "Low":
+            self.speed_limit_factor = 0.5
+        if msg.data in ("Very Low", "Critical"):
+            self.speed_limit_factor = 0.0
 
     def cmd_vel_manual_callback(self, msg):
         """Check safety of incoming drive command"""
@@ -71,13 +83,17 @@ class SafetyNode(Node):
             twist_msg.linear.x = max(-self.max_linear, min(self.max_linear, twist_msg.linear.x))
             twist_msg.angular.z = max(-self.max_angular, min(self.max_angular, twist_msg.angular.z))
 
+            # Limit speed when low battery
+            twist_msg.linear.x = twist_msg.linear.x * self.speed_limit_factor
+            twist_msg.angular.z = twist_msg.angular.z * self.speed_limit_factor
+
             # Store turning speed (No need to prevent turning usually)
             if twist_msg.linear.x > 0 or twist_msg.linear.x < 0:
                 if self.current_distance_mm < self.safety_distance_mm:
                     # Road block ahead: Force drive speed to zero
                     twist_msg.linear.x = 0.0
                     self.get_logger().warn(
-                        f"Moving stopped! Road blocked: {self.current_distance_mm} mm. Drive command suspended",
+                        f"SafetyNode: Moving stopped! Road blocked: {self.current_distance_mm} mm. Drive command suspended",
                         throttle_duration_sec=1.0  # Print in log once per second
                     )
             # Publish filtered command to driver node

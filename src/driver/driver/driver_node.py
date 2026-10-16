@@ -4,7 +4,7 @@ from typing import List
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist  # Standard message for robot movement
-from std_msgs.msg import Float32, Int32, String, Int32MultiArray
+from std_msgs.msg import Float32, String, Int32MultiArray
 
 class DriverNode(Node):
     def __init__(self):
@@ -12,10 +12,6 @@ class DriverNode(Node):
         self.shutdown = False
         self.declare_parameter('port', '/dev/ttyUSB0')
         self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('publish_rate_hz', 10.0)
-        self.declare_parameter('command_timeout_sec', 1.0)
-        #self.declare_parameter('publish_rate_hz', 10.0)
-        #self.declare_parameter('command_timeout_sec', 1.0)
         self.declare_parameter('invert_motor_1', False) # left front
         self.declare_parameter('invert_motor_2', True) # right front
         self.declare_parameter('invert_motor_3', True) # left_rear
@@ -33,8 +29,6 @@ class DriverNode(Node):
 
         self.port = self.get_parameter('port').get_parameter_value().string_value
         self.baudrate = self.get_parameter('baudrate').get_parameter_value().integer_value
-        #self.publish_rate_hz = float(self.get_parameter('publish_rate_hz').value)
-        #self.command_timeout_sec = float(self.get_parameter('command_timeout_sec').value)
 
         self.invert = [
             bool(self.get_parameter('invert_motor_1').get_parameter_value().bool_value), # left front
@@ -54,7 +48,7 @@ class DriverNode(Node):
 
         self.manual_control_sub = self.create_subscription(message, 'cmd_vel_manual', self.handle_speed_control_command, 10)
         self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
-        self.power_alert_sub = self.create_subscription(Int32, '/power/alert', self.beep, 10)
+        self.power_alert_sub = self.create_subscription(String, '/power/alert', self.beep, 10)
         self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
         self.encoder_pub = self.create_publisher(Int32MultiArray, '/wheel_encoders', 10)
 
@@ -105,13 +99,19 @@ class DriverNode(Node):
             self.get_logger().error(f'Driver: Rosmaster initialization error: {exc}')
             return False
 
-    def beep(self, beep_count):
+    def beep(self, msg):
+        beep_count = 0
+        if msg.data == "Low":
+            beep_count = 1
+        if msg.data == "Very Low":
+            beep_count = 5
+
         # Control the buzzer
         # `on_time=0` turns it off
         # `on_time=1` keeps it on continuously
         # `on_time>=10` turns it on for the given number of milliseconds
         # `on_time` must be a multiple of 10 for timed operation
-        for _ in range(beep_count.data):
+        for _ in range(beep_count):
             on_time = 100 # 100ms
             self.driver.set_beep(on_time)
             time.sleep(1)
@@ -137,6 +137,7 @@ class DriverNode(Node):
         # Limit values to maximum values. # Each `speed_X` must be in the range `[-100, 100]`
         self.target_motor_speeds = [self.clamp_motor_value(v) for v in speeds]
 
+# What is this? Is this needed?
 #        if self.target_motor_speeds != self.previous_target_motor_speeds:
             #reset_pid_if_needed()
             #pass
@@ -246,7 +247,7 @@ def main(args=None):
         pass
     finally:
         if node is not None:
-            node.get_logger().info("Startup failure - shutting down")
+            node.get_logger().info("Driver: Startup failure - shutting down")
             node.stop_motors_and_destroy()
         rclpy.shutdown()
 

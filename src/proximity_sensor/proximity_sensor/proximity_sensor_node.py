@@ -137,9 +137,10 @@
 
 import time
 import json
+from collections import deque
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Int32, String
+from std_msgs.msg import String
 
 # HW library imports
 from periphery import GPIO
@@ -148,6 +149,12 @@ import VL53L1X as ToFSensor
 class VL53L1XNode(Node):
     def __init__(self):
         super().__init__('vl53l1x_node')
+
+        # Sensor physical limits
+        self.min_dist = 40
+        self.max_dist = 4000
+        # Ring buffer for 10 last measurements
+        self.history_back_left = deque(maxlen=10)
 
         # self.pub_back_left = self.create_publisher(Int32, 'range/back_left', 10)
         # self.pub_back_right = self.create_publisher(Int32, 'range/back_right', 10)
@@ -194,6 +201,11 @@ class VL53L1XNode(Node):
             # Open using new address
             self.tof_back_left = ToFSensor.VL53L1X(i2c_bus=i2c_bus, i2c_address=0x30)
             self.tof_back_left.open()
+
+            # Set timing 50ms budget and 55ms inter measurement budget
+            # Reading of the sensor must be faster that the timer which triggers the reading
+            self.tof_back_left.set_timing(50000, 55)
+
             # Set measurement profile (1 = Short range, 2 = Long range)
             self.tof_back_left.start_ranging(2)
             self.get_logger().info("Back-Left initialized successfully on address 0x30!")
@@ -219,26 +231,31 @@ class VL53L1XNode(Node):
 
         # Create timer which expires after every 0.1 second (10 Hz) and publishes sensor data
 #        self.timer = self.create_timer(0.1, self.read_and_publish)
-        self.timer = self.create_timer(1, self.read_and_publish_left)
+        self.timer = self.create_timer(0.1, self.read_and_publish_left)
 #        self.timer = self.create_timer(1, self.read_and_publish_right)
 
     def read_and_publish_left(self):
         try:
             # # Read distance in millimeters
-            # distance_back_left = self.tof_back_left.get_distance()
+            distance = self.tof_back_left.get_distance()
 
-            # # Publish results
-            # msg_back_left = Int32()
-            # msg_back_left.data = distance_back_left
-            # self.pub_back_left.publish(msg_back_left)
+            # Filter invalid values
+            if distance <= self.min_dist or distance >= self.max_dist:
+                self.get_logger().warn(f"Invalid measurement detected: {distance} mm. Measurement dropped")
+                return
+
+            # Add value in ring buffer
+            self.history_back_left.append(distance)
+
+            # Calculate moving average of 10 last measurements
+            moving_average = sum(self.history_back_left) / sum(self.history_back_left) / len(self.history_back_left)
 
             msg_back_left = String()
-            distance_back_left = {"sensor": "back_left", "distance": self.tof_back_left.get_distance()}
+            distance_back_left = {"sensor": "back_left", "distance": moving_average}
             msg_back_left.data = json.dumps(distance_back_left)
             self.pub_range.publish(msg_back_left.data)
 
             self.get_logger().info(f"L: {distance_back_left} mm")
-
         except Exception as e:
             self.get_logger().error(f"Error reading sensors: {e}")
 

@@ -1,40 +1,38 @@
-# TODO: Voltage can vary based on load. Do not shutdown after first message
-# TODO: Reduce speed when battery voltage is low.
 import json
+from collections import deque
 import subprocess
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float32, Int32
-from std_msgs.msg import String
+from std_msgs.msg import Float32, String
 
 class PowerControlNode(Node):
     def __init__(self):
         super().__init__('power_control')
         self.beep_alert_sent = False
+        self.history_voltage = deque(maxlen=10) # Ring buffer for las 6 measurements (1 minute)
 
         self.battery_voltage_sub = self.create_subscription(Float32, '/power/battery_voltage', self.handle_battery_voltage, 10)
         self.battery_status_pub = self.create_publisher(String, '/power/battery_status', 10)
         self.power_shutdown_pub = self.create_publisher(String, '/power/shutdown', 10)
-        self.power_alert_pud = self.create_publisher(Int32, '/power/alert', 10)
+        self.power_alert_pud = self.create_publisher(String, '/power/alert', 10)
 
     def handle_battery_voltage(self, float32_msg):
         current_voltage = float32_msg.data
+        self.history_voltage.append(current_voltage)
+        moving_average = sum(self.history_voltage) / len(self.history_voltage)
         status = "Full"
-        if current_voltage < 11.5:
+        if moving_average < 11.5:
             status = "Good"
-        if current_voltage < 11.2:
+        if moving_average < 11.2:
             status = "Low"
-        if current_voltage < 11.0:
+        if moving_average < 11.0:
             status = "Very Low"
-        if current_voltage < 10.8:
+        if moving_average < 10.8:
             status = "Critical"
-            msg = Int32()
-            msg.data = 2
-            self.power_alert_pud.publish(msg)
-        if current_voltage < 10.6:
+        if moving_average < 10.6:
             status = "Shutdown"
-            msg = Int32()
-            msg.data = 5
+            msg = String()
+            msg.data = status
             self.power_alert_pud.publish(msg)
             shutdown_msg = String()
             shutdown_msg.data = "Shutdown voltage. Shutdown in 1 minute"
