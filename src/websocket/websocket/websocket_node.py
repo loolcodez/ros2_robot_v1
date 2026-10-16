@@ -62,8 +62,6 @@ class WebsocketNode(Node):
 async def main_async(args=None):
     rclpy.init(args=args)
     node = WebsocketNode()
-    if node is not None:
-        node.get_logger().info("Websocket: Startup failure - shutting down")
 
     # Run node asynchronously without locking asyncio-event loop
     while rclpy.ok():
