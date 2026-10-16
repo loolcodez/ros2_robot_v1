@@ -19,7 +19,7 @@ class PowerControlNode(Node):
     def handle_battery_voltage(self, float32_msg):
         current_voltage = float32_msg.data
         self.history_voltage.append(current_voltage)
-        moving_average = sum(self.history_voltage) / len(self.history_voltage)
+        moving_average = round(sum(self.history_voltage) / len(self.history_voltage),1) # Round to one decimal
         status = "Full"
         if moving_average < 11.5:
             status = "Good"
