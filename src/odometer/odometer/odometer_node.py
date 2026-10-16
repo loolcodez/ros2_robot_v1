@@ -77,6 +77,10 @@ class WheelOdometerNode(Node):
         # Speeds (m/s and rad/s)
         odom.twist.twist.linear.x = d_center / dt
         odom.twist.twist.angular.z = d_theta / dt
+        self.get_logger().info(f"OdoMeter: Speed linear.x {odom.twist.twist.linear.x}")
+        self.get_logger().info(f"OdoMeter: Speed angular.z {odom.twist.twist.angular.z}")
+        self.get_logger().info(f"OdoMeter: Position.x {odom.pose.pose.position.x}")
+        self.get_logger().info(f"OdoMeter: Position.z {odom.pose.pose.position.z}")
 
         self.odom_pub.publish(odom)
 

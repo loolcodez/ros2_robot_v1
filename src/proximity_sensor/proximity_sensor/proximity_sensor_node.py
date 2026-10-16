@@ -253,7 +253,7 @@ class VL53L1XNode(Node):
             msg_back_left = String()
             distance_back_left = {"sensor": "back_left", "distance": moving_average}
             msg_back_left.data = json.dumps(distance_back_left)
-            self.pub_range.publish(msg_back_left.data)
+            self.pub_range.publish(msg_back_left)
 
             self.get_logger().info(f"L: {distance_back_left} mm")
         except Exception as e:
