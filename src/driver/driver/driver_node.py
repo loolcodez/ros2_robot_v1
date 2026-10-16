@@ -46,7 +46,7 @@ class DriverNode(Node):
         float(message.linear.x)
         float(message.angular.z)
 
-        self.manual_control_sub = self.create_subscription(message, 'cmd_vel_manual', self.handle_speed_control_command, 10)
+        self.manual_control_sub = self.create_subscription(message, 'cmd_vel_out', self.handle_speed_control_command, 10)
         self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
         self.power_alert_sub = self.create_subscription(String, '/power/alert', self.beep, 10)
         self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
