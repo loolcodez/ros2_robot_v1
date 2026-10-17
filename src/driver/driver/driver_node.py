@@ -3,7 +3,8 @@ import math
 from typing import List
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist  # Standard message for robot movement
+from geometry_msgs.msg import Twist  # Standard message type for robot movement
+from sensor_msgs.msg import Imu   # Standard message type for IMU data
 from std_msgs.msg import Float32, String, Int32MultiArray
 
 class DriverNode(Node):
@@ -40,7 +41,6 @@ class DriverNode(Node):
         self.max_angular = float(self.get_parameter('max_angular').get_parameter_value().double_value)
 
         self.driver = None
-        #self.odometer = ODOMeter()
 
         message = Twist()
         float(message.linear.x)
@@ -51,6 +51,8 @@ class DriverNode(Node):
         self.power_alert_sub = self.create_subscription(String, '/power/alert', self.beep, 10)
         self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
         self.encoder_pub = self.create_publisher(Int32MultiArray, '/wheel_encoders', 10)
+        # sensor_msgs/msg/Imu is standard message type for IMU data
+        self.imu_pub = self.create_publisher(Imu, '/imu/data_raw', 10)
 
         if not self.initialize_driver():
             self.get_logger().error('Failed to initialize Rosmaster driver')
@@ -126,7 +128,7 @@ class DriverNode(Node):
         right_speed = msg.linear.x + msg.angular.z
 
         # Copy speeds for all 4 motors
-        # left_front,  right_front, left_rear, right rear
+        # left_front, right_front, left_rear, right rear
         speeds = [int(left_speed), int(right_speed), int(left_speed), int(right_speed)]
 
         # Invert other side motor direction
@@ -163,6 +165,22 @@ class DriverNode(Node):
         # Limit values to maximum values. # Each `speed_X` must be in the range `[-100, 100]`
         corrected_motor_speeds = [self.clamp_motor_value(v) for v in corrected_motor_speeds]
         self.set_motor_speeds(corrected_motor_speeds)
+
+    # def read_imu_data(self):
+    #     # IMU (oletetaan että ajurikortillasi on funktio esim. get_imu())
+    #     # Tarvitset vähintään kulmanopeuden Z-akselilla (gyro Z) ja kiihtyvyydet X ja Y
+    #     imu_data = self.driver.get_imu()
+
+    #     imu_msg = Imu()
+    #     imu_msg.header.stamp = self.get_clock().now().to_msg()
+    #     imu_msg.header.frame_id = 'imu_link'
+
+    #     # Täytä tähän ajurin antamat arvot (rad/s ja m/s^2)
+    #     imu_msg.angular_velocity.z = imu_data.gyro_z 
+    #     imu_msg.linear_acceleration.x = imu_data.accel_x
+    #     imu_msg.linear_acceleration.y = imu_data.accel_y
+
+    #     self.imu_pub.publish(imu_msg)
 
     def calculate_wheel_speeds(self, delta_encoders, delta_time):
         # Calculate current speed for every wheel in the list
@@ -247,7 +265,7 @@ def main(args=None):
         pass
     finally:
         if node is not None:
-            node.get_logger().info("Driver: Startup failure - shutting down")
+            node.get_logger().info("Driver: tartup failure - shutting down")
             node.stop_motors_and_destroy()
         rclpy.shutdown()
 
