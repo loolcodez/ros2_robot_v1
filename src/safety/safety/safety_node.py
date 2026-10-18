@@ -23,8 +23,11 @@ class SafetyNode(Node):
         # Listener distance sensors
         self.range_sub = self.create_subscription(String, 'range', self.range_callback, 10)
 
-        # Listener for incoming control commands from joystick and AI
+        # Listener for incoming control commands from joystick
         self.manual_control_sub = self.create_subscription(String, 'cmd_vel_manual', self.cmd_vel_manual_callback, 10)
+
+        # Listener for incoming control commands from AI
+        self.manual_control_sub = self.create_subscription(Twist, 'cmd_vel_in', self.cmd_vel_in_callback, 10)
 
         # Listener for power alert
         self.power_alert_sub = self.create_subscription(String, '/power/alert', self.power_alert_callback, 10)
@@ -80,31 +83,35 @@ class SafetyNode(Node):
             twist_msg.linear.x = twist_msg.linear.x * self.max_linear
             twist_msg.angular.z = -twist_msg.angular.z * self.max_angular
 
-            # Ensure maximum values are not exceed
-            twist_msg.linear.x = max(-self.max_linear, min(self.max_linear, twist_msg.linear.x))
-            twist_msg.angular.z = max(-self.max_angular, min(self.max_angular, twist_msg.angular.z))
+            self.cmd_vel_in_callback(twist_msg)
 
-            # Limit speed when low battery
-            twist_msg.linear.x = twist_msg.linear.x * self.speed_limit_factor
-            twist_msg.angular.z = twist_msg.angular.z * self.speed_limit_factor
+    def cmd_vel_in_callback(self, twist_msg):
+        """Check safety of incoming drive command"""
 
-            # Store turning speed (No need to prevent turning usually)
-            if twist_msg.linear.x > 0 or twist_msg.linear.x < 0:
-                if self.current_distance_mm < self.safety_distance_mm:
-                    # Road block ahead: Force drive speed to zero
-                    twist_msg.linear.x = 0.0
-                    twist_msg.angular.z = 0.0 # Turning may not need to be limited
-                    self.get_logger().warn(
-                        f"SafetyNode: Moving stopped! Road blocked: {self.current_distance_mm} mm. Drive command suspended",
-                        throttle_duration_sec=1.0  # Print in log once per second
-                    )
-            self.get_logger().info(
-                f"SafetyNode: sending cmd_vel_out -> "
-                f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
-            )
+        # Ensure maximum values are not exceed
+        twist_msg.linear.x = max(-self.max_linear, min(self.max_linear, twist_msg.linear.x))
+        twist_msg.angular.z = max(-self.max_angular, min(self.max_angular, twist_msg.angular.z))
 
-            # Publish filtered command to driver node
-            self.cmd_vel_out_pub.publish(twist_msg)
+        # Limit speed when low battery
+        twist_msg.linear.x = twist_msg.linear.x * self.speed_limit_factor
+        twist_msg.angular.z = twist_msg.angular.z * self.speed_limit_factor
+
+        if twist_msg.linear.x > 0 or twist_msg.linear.x < 0:
+            if self.current_distance_mm < self.safety_distance_mm:
+                # Road block ahead: Force drive speed to zero
+                twist_msg.linear.x = 0.0
+                twist_msg.angular.z = 0.0 # Turning may not need to be limited
+                self.get_logger().warn(
+                    f"SafetyNode: Moving stopped! Road blocked: {self.current_distance_mm} mm. Drive command suspended",
+                    throttle_duration_sec=1.0  # Print in log once per second
+                )
+        self.get_logger().info(
+            f"SafetyNode: sending cmd_vel_out -> "
+            f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
+        )
+
+        # Publish filtered command to driver node
+        self.cmd_vel_out_pub.publish(twist_msg)
 
 def main(args=None):
     rclpy.init(args=args)

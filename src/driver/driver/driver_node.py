@@ -18,15 +18,11 @@ class DriverNode(Node):
         self.declare_parameter('invert_motor_3', True) # left_rear
         self.declare_parameter('invert_motor_4', False) # right rear
         # Set speed correction value. Value range received from Joystick is -1 .. 1
-        self.declare_parameter('max_linear', 60.0) # speed. Must be in the range `[-100, 100]`
-        self.declare_parameter('max_angular', 60.0) # turning. Must be in the range `[-100, 100]`
+        self.declare_parameter('max_linear', 60.0) # Speed. Must be in the range `[-100, 100]`
+        self.declare_parameter('max_angular', 60.0) # Turning. Must be in the range `[-100, 100]`
         self.counts_per_revolution = 1320
         self.wheel_diameter = 0.065
-
-        self.encoding_time_ms = 20 #ms
-        self.previous_encoders: list[float] = [0.0] * 4
-        self.target_motor_speeds: list[float] = [0.0] * 4
-        self.previous_target_motor_speeds: list[float] = [0.0] * 4
+        self.encoding_timer_delay = 0.05 # 50ms
 
         self.port = self.get_parameter('port').get_parameter_value().string_value
         self.baudrate = self.get_parameter('baudrate').get_parameter_value().integer_value
@@ -40,18 +36,38 @@ class DriverNode(Node):
         self.max_linear = float(self.get_parameter('max_linear').get_parameter_value().double_value)
         self.max_angular = float(self.get_parameter('max_angular').get_parameter_value().double_value)
 
-        self.driver = None
+        # Control state: local encoder correction 'joystick_pid', direct' for self drive
+        self.control_mode = 'joystick_pid'
 
-        message = Twist()
-        float(message.linear.x)
-        float(message.angular.z)
+        # Init PID control values for all motors
+        self.pid_kp = 0.5
+        self.pid_ki = 0.1
+        self.pid_kd = 0.05
+        self.integral_error = [0.0] * 4
+        self.previous_error = [0.0] * 4
 
-        self.manual_control_sub = self.create_subscription(message, 'cmd_vel_out', self.handle_speed_control_command, 10)
+        # For filtering
+        self.target_motor_speeds = [0.0] * 4      # Requested by joystick
+        self.filtered_motor_speeds = [0.0] * 4    # Filtered/smoothed target speed
+        self.filter_alpha = 0.3                   # The smaller the smoother acceleration (0.0 - 1.0)
+
+        # For encoder based speed tracking
+        self.previous_encoders = [0.0] * 4
+
+
+        # message = Twist()
+        # float(message.linear.x)
+        # float(message.angular.z)
+
+        # ROS2 communication
+#        self.manual_control_sub = self.create_subscription(message, 'cmd_vel_out', self.handle_speed_control_command, 10)
+        self.drive_control_sub = self.create_subscription(Twist, 'cmd_vel_out', self.handle_speed_control_command, 10)
         self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
         self.power_alert_sub = self.create_subscription(String, '/power/alert', self.beep, 10)
         self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
+
+        # Sensor publishers
         self.encoder_pub = self.create_publisher(Int32MultiArray, '/wheel_encoders', 10)
-        # sensor_msgs/msg/Imu is standard message type for IMU data
         self.imu_pub = self.create_publisher(Imu, '/imu/data_raw', 10)
 
         if not self.initialize_driver():
@@ -59,8 +75,7 @@ class DriverNode(Node):
             raise RuntimeError('Rosmaster init failed')
 
         # Read motor encoders
-        period = 1 / self.encoding_time_ms
-        self.encoders_reader_timer = self.create_timer(period, self.handle_encoders)
+        self.sensor_loop_timer = self.create_timer(self.encoding_timer_delay, self.handle_sensors_and_control)
 
         # Publish initial  battery status
         self.publish_battery()
@@ -68,6 +83,7 @@ class DriverNode(Node):
         period = 10.0 # 10s
         self.battery_publish_timer = self.create_timer(period, self.publish_battery)
 
+        self.driver = None
         self.get_logger().info('DriveNode created')
 
     def initialize_driver(self) -> bool:
@@ -139,77 +155,71 @@ class DriverNode(Node):
         # Limit values to maximum values. # Each `speed_X` must be in the range `[-100, 100]`
         self.target_motor_speeds = [self.clamp_motor_value(v) for v in speeds]
 
-# What is this? Is this needed?
-#        if self.target_motor_speeds != self.previous_target_motor_speeds:
-            #reset_pid_if_needed()
-            #pass
+    def handle_sensors_and_control(self):
+        """This function executes every 50 milliseconds."""
+        if self.driver is None or self.shutdown:
+            return
 
-#        self.previous_target_motor_speeds = self.target_motor_speeds
+        try:
+            # Publish encoder sensor data
+            raw_encoders = self.driver.get_motor_encoder()
+            current_encoders = [float(v) for v in raw_encoders]
 
-    def handle_encoders(self):
-        current_encoders = self.read_wheel_encoders()
-        delta_encoders = [curr - prev for curr, prev in zip(current_encoders, self.previous_encoders)] # type: ignore
+            enc_msg = Int32MultiArray()
+            enc_msg.data = [int(v) for v in current_encoders]
+            self.encoder_pub.publish(enc_msg)
 
-        self.previous_encoders = current_encoders # type: ignore
-        current_motor_speeds = self.calculate_wheel_speeds(delta_encoders, self.encoding_time_ms)
+            # Read and publish IMU sensor data
+            self.publish_imu()
 
-        motors = [0, 1, 2, 3]
-        corrected_motor_speeds: list[float] = [
-            self.target_motor_speeds[motor] + self.pid_control(self.target_motor_speeds[motor], current_motor_speeds[motor])
-            for motor in motors
-        ]
-        self.get_logger().info(f"Driver: corrected_motor_speeds: {
-            corrected_motor_speeds[0], corrected_motor_speeds[1],
-            corrected_motor_speeds[2], corrected_motor_speeds[3]}")
+            # Filter control commands (Low-pass filter)
+            for i in range(4):
+                self.filtered_motor_speeds[i] = (self.filter_alpha * self.target_motor_speeds[i] +
+                                                 (1.0 - self.filter_alpha) * self.filtered_motor_speeds[i])
 
-        # Limit values to maximum values. # Each `speed_X` must be in the range `[-100, 100]`
-        corrected_motor_speeds = [self.clamp_motor_value(v) for v in corrected_motor_speeds]
-        self.set_motor_speeds(corrected_motor_speeds)
+            # Check is motor stopping
+            is_stopping = all(abs(t) < 0.1 for t in self.target_motor_speeds) and all(abs(f) < 1.0 for f in self.filtered_motor_speeds)
+            if is_stopping:
+                # Force all values to zero to stop the robot and avoid slow crawling
+                self.filtered_motor_speeds = [0.0] * 4
+                self.integral_error = [0.0] * 4
+                self.previous_error = [0.0] * 4
+                self.driver.set_motor(0, 0, 0, 0)
 
-    # def read_imu_data(self):
-    #     # IMU (oletetaan että ajurikortillasi on funktio esim. get_imu())
-    #     # Tarvitset vähintään kulmanopeuden Z-akselilla (gyro Z) ja kiihtyvyydet X ja Y
-    #     imu_data = self.driver.get_imu()
+            elif self.control_mode == 'joystick_pid':
+                delta_encoders = [curr - prev for curr, prev in zip(current_encoders, self.previous_encoders)]
+                current_speeds = self.calculate_wheel_speeds(delta_encoders, 0.05)
 
-    #     imu_msg = Imu()
-    #     imu_msg.header.stamp = self.get_clock().now().to_msg()
-    #     imu_msg.header.frame_id = 'imu_link'
+                final_commands = []
+                for i in range(4):
+                    error = self.filtered_motor_speeds[i] - current_speeds[i]
 
-    #     # Täytä tähän ajurin antamat arvot (rad/s ja m/s^2)
-    #     imu_msg.angular_velocity.z = imu_data.gyro_z 
-    #     imu_msg.linear_acceleration.x = imu_data.accel_x
-    #     imu_msg.linear_acceleration.y = imu_data.accel_y
+                    self.integral_error[i] += error * 0.05
+                    self.integral_error[i] = max(-20.0, min(20.0, self.integral_error[i])) # Anti-windup
 
-    #     self.imu_pub.publish(imu_msg)
+                    derivative = (error - self.previous_error[i]) / 0.05
+                    self.previous_error[i] = error
+
+                    pid_output = (self.pid_kp * error) + (self.pid_ki * self.integral_error[i]) + (self.pid_kd * derivative)
+
+                    final_cmd = self.filtered_motor_speeds[i] + pid_output
+                    final_commands.append(self.clamp_motor_value(int(final_cmd)))
+                    self.set_motor_speeds(final_commands)
+            else:
+                # 'direct'-mode for self run mode
+                commands = [self.clamp_motor_value(int(v)) for v in self.filtered_motor_speeds]
+                self.set_motor_speeds(commands)
+
+            self.previous_encoders = current_encoders
+
+        except Exception as exc:
+            self.get_logger().warning(f'Driver: Error in sensor/control loop: {exc}')
 
     def calculate_wheel_speeds(self, delta_encoders, delta_time):
         # Calculate current speed for every wheel in the list
         wheel_factor = (math.pi * self.wheel_diameter) / (self.counts_per_revolution * delta_time)
         speeds = [delta * wheel_factor for delta in delta_encoders]
         return speeds
-
-    def read_wheel_encoders(self):
-        if self.driver is None:
-            self.get_logger().warning("Driver: self.driver is None")
-            return None
-
-        try:
-            encoders = self.driver.get_motor_encoder()
-            self.get_logger().info(f"Driver: Encoders: {encoders[0], encoders[1], encoders[2], encoders[3]}")
-            msg = Int32MultiArray()
-            msg.data = [int(v) for v in encoders]
-            self.encoder_pub.publish(msg)
-            return encoders
-        except Exception as exc:
-            self.get_logger().warning(f'Driver: Failed to read motor encoders: {exc}')
-            return None
-
-    def pid_control(self, target_speed, current_speed) -> float:
-        # Simple P control (add later I and D if needed):
-        Kp = 0.5
-        error = target_speed - current_speed
-        correction = error * Kp
-        return correction
 
     def set_motor_speeds(self, speeds: List[float]) -> bool:
         if self.driver is None:
@@ -230,6 +240,56 @@ class DriverNode(Node):
     @staticmethod
     def clamp_motor_value(value: float) -> float:
         return max(-100.0, min(100.0, value))
+
+    def publish_imu(self):
+        """Reads the ICM20948 IMU sensor and publishes in standard ROS2 message"""
+        if self.driver is None or self.shutdown:
+            return
+
+        try:
+            # Read raw IMU sensor data
+            accel = self.driver.get_accelerometer_data()  # Returns (a_x, a_y, a_z)
+            gyro = self.driver.get_gyroscope_data()       # Returns (g_x, g_y, g_z)
+
+            # Conversion to ROS2 unit (SI-unit)
+            deg_to_rad = math.pi / 180.0
+
+            # Create standard ROS2 IMU message
+            imu_msg = Imu()
+            imu_msg.header.stamp = self.get_clock().now().to_msg()
+            imu_msg.header.frame_id = 'imu_link'  # Coordination, where sensor exists
+
+            # Linear Acceleration
+            imu_msg.linear_acceleration.x = float(accel[0])
+            imu_msg.linear_acceleration.y = float(accel[1])
+            imu_msg.linear_acceleration.z = float(accel[2])
+
+            # Angular Velocity
+            imu_msg.angular_velocity.x = float(gyro[0]) * deg_to_rad
+            imu_msg.angular_velocity.y = float(gyro[1]) * deg_to_rad
+            imu_msg.angular_velocity.z = float(gyro[2]) * deg_to_rad  # This axis measures turning
+
+            # Covariance estimate
+            # As we do not make exact calibration yet let's set the ROS2 way. Main diagonal get's small noise value and the rest zero value.
+            # If value is -1, system interprets the data inadequate
+            imu_msg.linear_acceleration_covariance = [
+                0.01, 0.0, 0.0,
+                0.0, 0.01, 0.0,
+                0.0, 0.0, 0.01
+            ]
+            imu_msg.angular_velocity_covariance = [
+                0.001, 0.0, 0.0,
+                0.0, 0.001, 0.0,
+                0.0, 0.0, 0.001
+            ]
+
+            # Orientation data is not filled as we read raw data (first element of covariance = -1)
+            imu_msg.orientation_covariance[0] = -1.0
+
+            self.imu_pub.publish(imu_msg)
+
+        except Exception as exc:
+            self.get_logger().warning(f'Driver: Reading and publishing IMU data failed: {exc}')
 
     def shutdown_callback(self, string_msg) -> None:
         self.get_logger().info(f"Shutdown trigger received: {string_msg.data}")
@@ -265,7 +325,7 @@ def main(args=None):
         pass
     finally:
         if node is not None:
-            node.get_logger().info("Driver: tartup failure - shutting down")
+            node.get_logger().info("Driver: Startup failure - shutting down")
             node.stop_motors_and_destroy()
         rclpy.shutdown()
 
