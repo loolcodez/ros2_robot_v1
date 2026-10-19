@@ -70,6 +70,7 @@ class DriverNode(Node):
         self.encoder_pub = self.create_publisher(Int32MultiArray, '/wheel_encoders', 10)
         self.imu_pub = self.create_publisher(Imu, '/imu/data_raw', 10)
 
+        self.driver = None
         if not self.initialize_driver():
             self.get_logger().error('Failed to initialize Rosmaster driver')
             raise RuntimeError('Rosmaster init failed')
@@ -77,13 +78,12 @@ class DriverNode(Node):
         # Read motor encoders
         self.sensor_loop_timer = self.create_timer(self.encoding_timer_delay, self.handle_sensors_and_control)
 
-        # Publish initial  battery status
+        # Publish initial battery status
         self.publish_battery()
         # Set timer which publishes battery status periodically
         period = 10.0 # 10s
         self.battery_publish_timer = self.create_timer(period, self.publish_battery)
 
-        self.driver = None
         self.get_logger().info('DriveNode created')
 
     def initialize_driver(self) -> bool:
@@ -158,6 +158,8 @@ class DriverNode(Node):
     def handle_sensors_and_control(self):
         """This function executes every 50 milliseconds."""
         if self.driver is None or self.shutdown:
+            if self.shutdown:
+                self.get_logger().info("Driver: shutdown")
             return
 
         try:
@@ -190,10 +192,9 @@ class DriverNode(Node):
                 delta_encoders = [curr - prev for curr, prev in zip(current_encoders, self.previous_encoders)]
                 current_speeds = self.calculate_wheel_speeds(delta_encoders, 0.05)
 
-                final_commands = []
+                final_commands = [0] * 4
                 for i in range(4):
                     error = self.filtered_motor_speeds[i] - current_speeds[i]
-
                     self.integral_error[i] += error * 0.05
                     self.integral_error[i] = max(-20.0, min(20.0, self.integral_error[i])) # Anti-windup
 
@@ -203,7 +204,8 @@ class DriverNode(Node):
                     pid_output = (self.pid_kp * error) + (self.pid_ki * self.integral_error[i]) + (self.pid_kd * derivative)
 
                     final_cmd = self.filtered_motor_speeds[i] + pid_output
-                    final_commands.append(self.clamp_motor_value(int(final_cmd)))
+
+                    final_commands[i] = self.clamp_motor_value(int(final_cmd))
                     self.set_motor_speeds(final_commands)
             else:
                 # 'direct'-mode for self run mode
@@ -221,25 +223,24 @@ class DriverNode(Node):
         speeds = [delta * wheel_factor for delta in delta_encoders]
         return speeds
 
-    def set_motor_speeds(self, speeds: List[float]) -> bool:
+    def set_motor_speeds(self, speeds: List[int]):
         if self.driver is None:
-            return False
+            self.get_logger().error('Driver: Failed to send motor command. self.driver is None ')
+            return
 
         try:
             self.driver.set_motor(
-                int(speeds[0]),
-                int(speeds[1]),
-                int(speeds[2]),
-                int(speeds[3]),
+                speeds[0],
+                speeds[1],
+                speeds[2],
+                speeds[3],
             )
-            return True
         except Exception as exc:
             self.get_logger().error(f'Driver: Failed to send motor command: {exc}')
-            return False
 
     @staticmethod
-    def clamp_motor_value(value: float) -> float:
-        return max(-100.0, min(100.0, value))
+    def clamp_motor_value(value: int) -> int:
+        return max(-100, min(100, value))
 
     def publish_imu(self):
         """Reads the ICM20948 IMU sensor and publishes in standard ROS2 message"""
