@@ -26,7 +26,7 @@ class GPIO_pins(Enum):
     BACK_RIGHT = 272
 
 class VL53L1X():
-    def __init__(self, node: Node, name: str, gpio_pin: GPIO_pins, address: int = 0x29):
+    def __init__(self, node: Node, name: str, gpio_pin: int, address: int = 0x29):
         self.name: Final[str] = name
         self.address: Final[int] = address
         self.logger = node.get_logger()
@@ -39,18 +39,18 @@ class VL53L1X():
         self.history = deque(maxlen=10)
 
          # Init XSHUT pins and set it OUTPUT-state
-        self.logger.info("VL53L1X: Initializing XSHUT pins...")
+        self.logger.info(f"VL53L1X: {self.name} Initializing XSHUT pins...")
         try:
             self.xshut = GPIO(gpio_pin, "out")
             self.xshut.write(False) # Set pin low
             time.sleep(0.5)  # Wait until sensor is ready
         except Exception as e:
-            self.logger.error(f"VL53L1X: GPIO initialization failed: {e}")
+            self.logger.error(f"VL53L1X: {self.name} GPIO initialization failed: {e}")
             return
 
         # Initialize I2C-bus
         i2c_bus = 0
-        self.logger.info(f"VL53L1X: Connecting VL53L1X sensor on I2C-bus {i2c_bus}...")
+        self.logger.info(f"VL53L1X: {self.name} connecting VL53L1X sensor on I2C-bus {i2c_bus}...")
 
         try:
             # ----------------------------------------------------
@@ -76,22 +76,30 @@ class VL53L1X():
                 # Set timing 50ms budget and 55ms inter measurement budget
                 # Reading of the sensor must be faster that the timer which triggers the reading
                 self.tof.set_timing(50000, 55)
-                self.logger.info(f"VL53L1X: {self.name} sensor initialized successfully on address {self.address}!")
+                self.logger.info(f"VL53L1X: {self.name} sensor initialized successfully on address {self.address:#x}!")
 
             except Exception as e:
                 self.logger.error(f"VL53L1X: {self.name} sensor initialization failed: {e}")
                 return
         except Exception as e:
-            self.logger.error(f"VL53L1X: Sensor sequential initialization failed: {e}")
+            self.logger.error(f"VL53L1X: {self.name} sensor sequential initialization failed: {e}")
             self.cleanup()
             return
 
     def start_ranging(self):
-        # Set measurement profile (1 = Short range, 2 = Long range)
-        self.tof.start_ranging(2)
+        self.logger.error(f"VL53L1X: starting ranging on sensor {self.name}")
+        try:
+            # Set measurement profile (1 = Short range, 2 = Long range)
+            self.tof.start_ranging(2)
+        except Exception as e:
+            self.logger.error(f"VL53L1X: starting ranging on sensor {self.name} failed: {e}")
 
     def stop_ranging(self):
-        self.tof.stop_ranging()
+        self.logger.error(f"VL53L1X: stopping ranging on sensor {self.name}")
+        try:
+            self.tof.stop_ranging()
+        except Exception as e:
+            self.logger.error(f"VL53L1X: stopping ranging on sensor {self.name} failed: {e}")
 
     def read_sensor(self):
         try:
@@ -116,14 +124,14 @@ class VL53L1X():
             return msg
 
         except Exception as e:
-            self.logger.error(f"VL53L1X: Error in reading sensor: {e}")
+            self.logger.error(f"VL53L1X: Error in reading sensor: {self.name} {e}")
             return None
 
     def cleanup(self):
         try:
             self.tof.stop_ranging()
         except Exception as e:
-            self.logger.error(f"Error in stopping measuring sensor: {e}")
+            self.logger.error(f"Error in stopping measuring sensor: {self.name} {e}")
 
         if self.xshut:
             try:
@@ -138,13 +146,14 @@ class VL53L1XNode(Node):
 
         # Create sensors
         self.sensors : Dict[str, VL53L1X] = {
-            'front_left': VL53L1X(self, 'front_left', GPIO_pins.FRONT_LEFT, 32),
-            'front_right': VL53L1X(self, 'front_right', GPIO_pins.FRONT_RIGHT, 31),
-            'back_left': VL53L1X(self, 'back_left', GPIO_pins.BACK_LEFT, 30,),
-            'back_right': VL53L1X(self, 'back_right', GPIO_pins.BACK_RIGHT, 29)
+            'back_right': VL53L1X(self, 'back_right', GPIO_pins.BACK_LEFT.value, 0x29)
+            #'back_left': VL53L1X(self, 'back_left', GPIO_pins.BACK_RIGHT.value, 0x30,),
+            #'front_right': VL53L1X(self, 'front_right', GPIO_pins.FRONT_LEFT.value, 0x31),
+            #'front_left': VL53L1X(self, 'front_left', GPIO_pins.FRONT_RIGHT.value, 0x32)
         }
 
-        self.set_move_direction("Forward")
+#        self.set_move_direction("Forward")
+        self.set_move_direction("Backward")
 
         self.move_direction_sub = self.create_subscription(String, '/move/direction', self.set_move_direction_callback, 10)
         self.pub_range = self.create_publisher(String, 'range', 10)
@@ -156,6 +165,7 @@ class VL53L1XNode(Node):
         self. set_move_direction(msg.data)
 
     def set_move_direction(self, direction: str):
+        self.get_logger().error(f"VL53L1XNode: Setting move direction to: {direction}")
         if direction in {"Forward", "Backward"}:
             self.move_direction = direction
             if direction == "Forward":
@@ -165,11 +175,13 @@ class VL53L1XNode(Node):
                 inactive_sensors = {'front_left', 'front_right'}
                 active_sensors = {'back_left', 'back_right'}
 
+            # Stop ranging
             for name in inactive_sensors:
                 sensor = self.sensors.get(name)
                 if sensor:
                     sensor.stop_ranging()
 
+            # Start ranging
             for name in active_sensors:
                 sensor = self.sensors.get(name)
                 if sensor:
