@@ -13,6 +13,9 @@ class WebsocketNode(Node):
         # Create Publisher for command coming from websocket
         self.move_command_publisher = self.create_publisher(String, 'cmd_vel_manual', 10)
 
+        # Create Publisher for connection status, connected/disconnected
+        self.connection_status_publisher = self.create_publisher(String, '/connection/status', 10)
+
         # Create subscriber for battery status
         self.battery_status_subscription = self.create_subscription(String, '/power/battery_status', self.forward_battery_status, 10)
 
@@ -23,20 +26,23 @@ class WebsocketNode(Node):
         self.loop.create_task(self.start_websocket_server())
 
     async def start_websocket_server(self):
-        self.get_logger().info(f"Websocket: Started Websocket on port: {self.port }")
+        self.get_logger().info(f"Started Websocket on port: {self.port }")
         async with websockets.serve(self.ws_handler, "0.0.0.0", self.port):
             await asyncio.Future()  # Run forever
 
     async def ws_handler(self, websocket):
         # Handle incoming messages from websocket
         self.connected_clients.add(websocket)
-        self.get_logger().info(f'Websocket: New websocket connection. Active connections: {len(self.connected_clients)}')
+        msg = String()
+        msg = "connected"
+        self.connection_status_publisher.publish(msg)
+        self.get_logger().info(f'New websocket connection. Active connections: {len(self.connected_clients)}')
 
         try:
             async for json_message in websocket:
                 msg = String()
                 msg.data = json_message
-                self.get_logger().info(f"Websocket: Received message: {json_message}")
+                self.get_logger().info(f"Received message: {json_message}")
 
                 # Publish the command
                 self.move_command_publisher.publish(msg)
@@ -44,11 +50,14 @@ class WebsocketNode(Node):
             pass
         finally:
             self.connected_clients.remove(websocket)
-            self.get_logger().info(f'Websocket: Connection closed. Active connections: {len(self.connected_clients)}')
+            msg = String()
+            msg = "disconnected"
+            self.connection_status_publisher.publish(msg)
+            self.get_logger().info(f'Connection closed. Active connections: {len(self.connected_clients)}')
 
     def forward_battery_status(self, msg):
         # Handle battery status message coming from another ROS Node
-        self.get_logger().info(f"Websocket: Sending battery status: {msg.data}")
+        self.get_logger().info(f"Sending battery status: {msg.data}")
         asyncio.run_coroutine_threadsafe(self.broadcast_to_ws(msg.data), self.loop)
 
     async def broadcast_to_ws(self, text_data):
