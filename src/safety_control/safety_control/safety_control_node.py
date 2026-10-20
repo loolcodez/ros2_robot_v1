@@ -4,23 +4,22 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 
-class SafetyNode(Node):
+class SafetyControlNode(Node):
     def __init__(self):
         super().__init__('safety_node')
-
-        self.speed_limit_factor = 1
 
         # Set speed correction value. Value range received from Joystick is -1 .. 1
         self.declare_parameter('max_linear', 60.0) # Speed. Must be in the range `[-100, 100]`
         self.declare_parameter('max_angular', 60.0) # Turning. Must be in the range `[-100, 100]`
 
+        self.speed_limit_factor = 1
         self.safety_distance_mm = 300  # Safety distance in millimeters
         self.current_distance_mm = 9999  # Default range when object is not detected
         self.sensor = ""
         self.max_linear = float(self.get_parameter('max_linear').get_parameter_value().double_value)
         self.max_angular = float(self.get_parameter('max_angular').get_parameter_value().double_value)
 
-        # Listener distance sensors
+        # Listener for distance sensors
         self.range_sub = self.create_subscription(String, 'range', self.range_callback, 10)
 
         # Listener for incoming control commands from joystick
@@ -115,7 +114,7 @@ class SafetyNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = SafetyNode()
+    node = SafetyControlNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

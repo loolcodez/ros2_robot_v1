@@ -5,7 +5,7 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
-    safety_launch_dir = os.path.join(get_package_share_directory('safety'), 'launch')
+    safety_launch_dir = os.path.join(get_package_share_directory('safety_control'), 'launch')
     power_launch_dir = os.path.join(get_package_share_directory('power_control'), 'launch')
     light_launch_dir = os.path.join(get_package_share_directory('light_control'), 'launch')
     proximity_launch_dir = os.path.join(get_package_share_directory('proximity_sensor'), 'launch')
@@ -14,15 +14,15 @@ def generate_launch_description():
     odometer_launch_dir = os.path.join(get_package_share_directory('odometer'), 'launch')
     driver_launch_dir = os.path.join(get_package_share_directory('driver'), 'launch')
 
-    launch_safety = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(safety_launch_dir, 'safety.launch.py'))
+    launch_safety_control = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(safety_launch_dir, 'safety_control.launch.py'))
     )
 
-    launch_power = IncludeLaunchDescription(
+    launch_power_control = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(power_launch_dir, 'power_control.launch.py'))
     )
 
-    launch_light = IncludeLaunchDescription(
+    launch_light_control = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(light_launch_dir, 'light_control.launch.py'))
     )
 
@@ -47,9 +47,9 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        launch_safety,
-        launch_power,
-        launch_light,
+        launch_safety_control,
+        launch_power_control,
+        launch_light_control,
         proximity_sensor,
   #      launch_camera
         launch_websocket,

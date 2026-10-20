@@ -5,9 +5,9 @@ def generate_launch_description():
 
     return LaunchDescription([
         Node(
-            package='safety',
-            executable='safety_node',
-            name='safety',
+            package='safety_control',
+            executable='safety_control_node',
+            name='safety_control',
             output='screen'
 #            parameters=[config]
         )
