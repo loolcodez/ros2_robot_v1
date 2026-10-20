@@ -11,10 +11,21 @@ class PowerControlNode(Node):
         self.beep_alert_sent = False
         self.history_voltage = deque(maxlen=10) # Ring buffer for las 6 measurements (1 minute)
 
+        # Create subscribers
+        self.connection_status_sub = self.create_subscription(String, '/connection/status', self.handle_connection_status, 10)
+
+        # Create publishers
         self.battery_voltage_sub = self.create_subscription(Float32, '/power/battery_voltage', self.handle_battery_voltage, 10)
         self.battery_status_pub = self.create_publisher(String, '/power/battery_status', 10)
         self.power_shutdown_pub = self.create_publisher(String, '/power/shutdown', 10)
         self.power_alert_pud = self.create_publisher(String, '/power/alert', 10)
+
+    def handle_connection_status(self, msg):
+        if msg.data == "connected":
+            msg = String()
+            msg = self.history_voltage
+            moving_average = round(sum(self.history_voltage) / len(self.history_voltage),1) # Round to one decimal
+            self.battery_status_pub.publish(moving_average)
 
     def handle_battery_voltage(self, float32_msg):
         current_voltage = float32_msg.data
@@ -56,7 +67,7 @@ class PowerControlNode(Node):
         status = f"{current_voltage:.2f}V {status}"
         msg = String()
         msg.data = json.dumps({"sender": "Rover", "type": "control", "battery_status": status})
-        self.get_logger().info(f"PowerControlNode: Sending battery status: {msg}")
+        self.get_logger().info(f"Sending battery status: {msg}")
         self.battery_status_pub.publish(msg)
 
 def main(args=None):
