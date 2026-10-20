@@ -34,7 +34,7 @@ class WebsocketNode(Node):
         # Handle incoming messages from websocket
         self.connected_clients.add(websocket)
         msg = String()
-        msg = "connected"
+        msg.data = "connected"
         self.connection_status_publisher.publish(msg)
         self.get_logger().info(f'New websocket connection. Active connections: {len(self.connected_clients)}')
 
@@ -51,7 +51,7 @@ class WebsocketNode(Node):
         finally:
             self.connected_clients.remove(websocket)
             msg = String()
-            msg = "disconnected"
+            msg.data = "disconnected"
             self.connection_status_publisher.publish(msg)
             self.get_logger().info(f'Connection closed. Active connections: {len(self.connected_clients)}')
 

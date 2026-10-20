@@ -22,38 +22,27 @@ class PowerControlNode(Node):
 
     def handle_connection_status(self, msg):
         if msg.data == "connected":
+            self.get_logger().info('New websocket connection')
+            moving_average = 12
+            if len(self.history_voltage) > 0:
+                moving_average = round(sum(self.history_voltage) / len(self.history_voltage),1) # Round to one decimal
+            status = self.get_battery_status(moving_average)
+            status = f"{moving_average:.2f}V {status}"
             msg = String()
-            msg = self.history_voltage
-            moving_average = round(sum(self.history_voltage) / len(self.history_voltage),1) # Round to one decimal
-            self.battery_status_pub.publish(moving_average)
+            msg.data = json.dumps({"sender": "Rover", "type": "control", "battery_status": status})
+            self.get_logger().info(f"Sending battery status: {msg.data}")
+            self.battery_status_pub.publish(msg)
 
     def handle_battery_voltage(self, float32_msg):
         current_voltage = float32_msg.data
         self.history_voltage.append(current_voltage)
         moving_average = round(sum(self.history_voltage) / len(self.history_voltage),1) # Round to one decimal
-        status = "Full"
-        if moving_average < 11.5:
-            status = "Good"
-        if moving_average < 11.2:
-            status = "Low"
-            msg = String()
-            msg.data = status
+        status = self.get_battery_status(moving_average)
+        msg = String()
+        msg.data = status
+        if status in {"Low", "Very Low", "Critical", "Shutdown"}:
             self.power_alert_pud.publish(msg)
-        if moving_average < 11.0:
-            status = "Very Low"
-            msg = String()
-            msg.data = status
-            self.power_alert_pud.publish(msg)
-        if moving_average < 10.8:
-            status = "Critical"
-            msg = String()
-            msg.data = status
-            self.power_alert_pud.publish(msg)
-        if moving_average < 10.6:
-            status = "Shutdown"
-            msg = String()
-            msg.data = status
-            self.power_alert_pud.publish(msg)
+        if status == "Shutdown":
             shutdown_msg = String()
             shutdown_msg.data = "Shutdown voltage. Shutdown in 1 minute"
             self.power_shutdown_pub.publish(shutdown_msg)
@@ -64,11 +53,25 @@ class PowerControlNode(Node):
             except subprocess.CalledProcessError as e:
                 self.get_logger().info(f"Failed to schedule shutdown: {e}")
 
-        status = f"{current_voltage:.2f}V {status}"
+        status = f"{moving_average:.2f}V {status}"
         msg = String()
         msg.data = json.dumps({"sender": "Rover", "type": "control", "battery_status": status})
-        self.get_logger().info(f"Sending battery status: {msg}")
+        self.get_logger().info(f"Sending battery status: {msg.data}")
         self.battery_status_pub.publish(msg)
+
+    def get_battery_status(self, moving_average):
+        status = "Full"
+        if moving_average < 11.5:
+            status = "Good"
+        if moving_average < 11.2:
+            status = "Low"
+        if moving_average < 11.0:
+            status = "Very Low"
+        if moving_average < 10.8:
+            status = "Critical"
+        if moving_average < 10.6:
+            status = "Shutdown"
+        return status
 
 def main(args=None):
     rclpy.init(args=args)
