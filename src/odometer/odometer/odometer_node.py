@@ -79,10 +79,10 @@ class OdometerNode(Node):
         # Speeds (m/s and rad/s)
         odom.twist.twist.linear.x = d_center / dt
         odom.twist.twist.angular.z = d_theta / dt
-        self.get_logger().info(f"OdoMeter: Speed linear.x {odom.twist.twist.linear.x}")
-        self.get_logger().info(f"OdoMeter: Speed angular.z {odom.twist.twist.angular.z}")
-        self.get_logger().info(f"OdoMeter: Position.x {odom.pose.pose.position.x}")
-        self.get_logger().info(f"OdoMeter: Position.y {odom.pose.pose.position.y}")
+        self.get_logger().info(f"Speed linear.x {odom.twist.twist.linear.x}")
+        self.get_logger().info(f"Speed angular.z {odom.twist.twist.angular.z}")
+        self.get_logger().info(f"Position.x {odom.pose.pose.position.x}")
+        self.get_logger().info(f"Position.y {odom.pose.pose.position.y}")
 
         self.odom_pub.publish(odom)
 
@@ -99,7 +99,7 @@ def main(args=None):
         pass
     finally:
         if node is not None:
-            node.get_logger().info("Odometer: Startup failure - shutting down")
+            node.get_logger().info("Startup failure - shutting down")
         rclpy.shutdown()
 
 if __name__ == '__main__':

@@ -279,7 +279,7 @@ ros2 pkg create --build-type ament_python --node-name websocket websocket
 ros2 pkg create --build-type ament_python --node-name driver driver
 ros2 pkg create --build-type ament_python --node-name light_control light_control
 ros2 pkg create --build-type ament_python --node-name proximity_sensor proximity_sensor
-ros2 pkg create --build-type ament_python --node-name safety safety
+ros2 pkg create --build-type ament_python --node-name safety_control safety_control
 ros2 pkg create --build-type ament_python --node-name odometer odometer
 ros2 pkg create --build-type ament_python --node-name odometer odometer
 

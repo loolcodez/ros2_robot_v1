@@ -95,8 +95,8 @@ class DriverNode(Node):
             # Example import style. Change this if your local library differs.
             from Rosmaster_Lib import Rosmaster  # type: ignore
         except Exception as exc:
-            self.get_logger().error(f'Driver: Failed to import Rosmaster library: {exc}')
-            self.get_logger().error('Driver: Install or copy the vendor Rosmaster library so Python can import it.')
+            self.get_logger().error(f'Failed to import Rosmaster library: {exc}')
+            self.get_logger().error('Install or copy the vendor Rosmaster library so Python can import it.')
             return False
 
         try:
@@ -110,11 +110,11 @@ class DriverNode(Node):
             self.driver.create_receive_threading()
             self.driver.clear_auto_report_data()
 
-            self.get_logger().info(f'Driver: Rosmaster initialized on port {self.port}')
+            self.get_logger().info(f'Rosmaster initialized on port {self.port}')
             return True
 
         except Exception as exc:
-            self.get_logger().error(f'Driver: Rosmaster initialization error: {exc}')
+            self.get_logger().error(f'Rosmaster initialization error: {exc}')
             return False
 
     def beep(self, msg):
@@ -135,7 +135,7 @@ class DriverNode(Node):
             time.sleep(1)
 
     def handle_speed_control_command(self, msg):
-        self.get_logger().info(f"Driver: linear.x={msg.linear.x:.2f}, angular.z={msg.angular.z:.2f}")
+        self.get_logger().info(f"linear.x={msg.linear.x:.2f}, angular.z={msg.angular.z:.2f}")
         if self.shutdown is True:
             return
 
@@ -159,7 +159,7 @@ class DriverNode(Node):
         """This function executes every 50 milliseconds."""
         if self.driver is None or self.shutdown:
             if self.shutdown:
-                self.get_logger().info("Driver: shutdown")
+                self.get_logger().info("shutdown")
             return
 
         try:
@@ -215,7 +215,7 @@ class DriverNode(Node):
             self.previous_encoders = current_encoders
 
         except Exception as exc:
-            self.get_logger().warning(f'Driver: Error in sensor/control loop: {exc}')
+            self.get_logger().warning(f'Error in sensor/control loop: {exc}')
 
     def calculate_wheel_speeds(self, delta_encoders, delta_time):
         # Calculate current speed for every wheel in the list
@@ -225,7 +225,7 @@ class DriverNode(Node):
 
     def set_motor_speeds(self, speeds: List[int]):
         if self.driver is None:
-            self.get_logger().error('Driver: Failed to send motor command. self.driver is None ')
+            self.get_logger().error('Failed to send motor command. self.driver is None ')
             return
 
         try:
@@ -236,7 +236,7 @@ class DriverNode(Node):
                 speeds[3],
             )
         except Exception as exc:
-            self.get_logger().error(f'Driver: Failed to send motor command: {exc}')
+            self.get_logger().error(f'Failed to send motor command: {exc}')
 
     @staticmethod
     def clamp_motor_value(value: int) -> int:
@@ -290,7 +290,7 @@ class DriverNode(Node):
             self.imu_pub.publish(imu_msg)
 
         except Exception as exc:
-            self.get_logger().warning(f'Driver: Reading and publishing IMU data failed: {exc}')
+            self.get_logger().warning(f'Reading and publishing IMU data failed: {exc}')
 
     def shutdown_callback(self, string_msg) -> None:
         self.get_logger().info(f"Shutdown trigger received: {string_msg.data}")
@@ -298,7 +298,7 @@ class DriverNode(Node):
 
     def stop_motors_and_destroy(self) -> None:
         try:
-            self.get_logger().info('Driver: Stopping motors before shutdown')
+            self.get_logger().info('Stopping motors before shutdown')
             self.set_motor_speeds([0, 0, 0, 0])
         except Exception as e:
             self.get_logger().error(f"Failed to stop motors: {e}")
@@ -314,7 +314,7 @@ class DriverNode(Node):
             msg.data = voltage
             self.battery_voltage_pub.publish(msg)
         except Exception as exc:
-            self.get_logger().warning(f'Driver: Failed to read battery voltage: {exc}')
+            self.get_logger().warning(f'Failed to read battery voltage: {exc}')
 
 def main(args=None):
     rclpy.init(args=args)
@@ -326,7 +326,7 @@ def main(args=None):
         pass
     finally:
         if node is not None:
-            node.get_logger().info("Driver: Startup failure - shutting down")
+            node.get_logger().info("Startup failure - shutting down")
             node.stop_motors_and_destroy()
         rclpy.shutdown()
 
