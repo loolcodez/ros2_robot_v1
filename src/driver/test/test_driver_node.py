@@ -35,7 +35,6 @@ def test_driver_node_speed_mapping(mock_init):
     # Left_front, right_front, left_rear, right_rear
     assert node.target_motor_speeds == [50, -50, -50, 50]
 
-
 @patch('driver.driver_node.DriverNode.initialize_driver')
 def test_driver_node_sensor_processing(mock_init):
 
