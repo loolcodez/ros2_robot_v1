@@ -6,7 +6,6 @@
 # XSHUT back-left 35/PI2/258 Gray wire
 # XSHUT back-right 37/PI16/272 Gray wire
 
-import time
 import json
 from enum import Enum
 from typing import Final, Dict
@@ -14,10 +13,7 @@ from collections import deque
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-
-# HW library imports
-from periphery import GPIO
-import VL53L1X as ToFSensor
+from proximity_sensor.hardware_interface import VL53L1XHardwareInterface
 
 class GPIO_pins(Enum):
     FRONT_LEFT = 256
@@ -26,9 +22,9 @@ class GPIO_pins(Enum):
     BACK_RIGHT = 272
 
 class VL53L1X():
-    def __init__(self, node: Node, name: str, gpio_pin: int, address: int = 0x29):
+    def __init__(self, node: Node, name: str, hardware_interface):
+        self.sensor = hardware_interface
         self.name: Final[str] = name
-        self.address: Final[int] = address
         self.logger = node.get_logger()
 
         # Sensor physical limits
@@ -38,73 +34,26 @@ class VL53L1X():
         # Ring buffer for 10 last measurements
         self.history = deque(maxlen=10)
 
-         # Init XSHUT pins and set it OUTPUT-state
-        self.logger.info(f"{self.name} Initializing XSHUT pins...")
-        try:
-            self.xshut = GPIO(gpio_pin, "out")
-            self.xshut.write(False) # Set pin low
-            time.sleep(0.5)  # Wait until sensor is ready
-        except Exception as e:
-            self.logger.error(f"{self.name} GPIO initialization failed: {e}")
-            return
-
-        # Initialize I2C-bus
-        i2c_bus = 0
-        self.logger.info(f"{self.name} connecting VL53L1X sensor on I2C-bus {i2c_bus}...")
-
-        try:
-            # ----------------------------------------------------
-            # Init back-left sensor
-            # ----------------------------------------------------
-            self.logger.info(f"Waking up {self.name} sensor...")
-            self.xshut.write(True) # Set pin high
-            time.sleep(0.5)  # Wait until sensor is ready
-
-            try:
-                # Sensor wakes up using default 0x29 address
-                self.tof = ToFSensor.VL53L1X(i2c_bus=i2c_bus, i2c_address=0x29)
-                if address != 0x29:
-                    # Switch back left sensor address to new address
-                    self.tof.open()
-                    self.tof.change_address(self.address)
-                    self.tof.close()
-                    # Open using new address
-                    self.tof = ToFSensor.VL53L1X(i2c_bus=i2c_bus, i2c_address=self.address)
-
-                self.tof.open()
-
-                # Set timing 50ms budget and 55ms inter measurement budget
-                # Reading of the sensor must be faster that the timer which triggers the reading
-                self.tof.set_timing(50000, 55)
-                self.logger.info(f"{self.name} sensor initialized successfully on address {self.address:#x}!")
-
-            except Exception as e:
-                self.logger.error(f"{self.name} sensor initialization failed: {e}")
-                return
-        except Exception as e:
-            self.logger.error(f"{self.name} sensor sequential initialization failed: {e}")
-            self.cleanup()
-            return
-
     def start_ranging(self):
-        self.logger.error(f"starting ranging on sensor {self.name}")
+        self.logger.info(f"starting ranging on sensor {self.name}")
         try:
             # Set measurement profile (1 = Short range, 2 = Long range)
-            self.tof.start_ranging(2)
+            self.sensor.start_ranging()
+            #self.sensor.start_ranging(2)
         except Exception as e:
             self.logger.error(f"starting ranging on sensor {self.name} failed: {e}")
 
     def stop_ranging(self):
-        self.logger.error(f"stopping ranging on sensor {self.name}")
+        self.logger.info(f"stopping ranging on sensor {self.name}")
         try:
-            self.tof.stop_ranging()
+            self.sensor.stop_ranging()
         except Exception as e:
             self.logger.error(f"stopping ranging on sensor {self.name} failed: {e}")
 
     def read_sensor(self):
         try:
             # # Read distance in millimeters
-            distance = self.tof.get_distance()
+            distance = self.sensor.get_distance()
 
             # Filter invalid values
             if distance <= self.min_dist or distance >= self.max_dist:
@@ -128,28 +77,23 @@ class VL53L1X():
             return None
 
     def cleanup(self):
-        try:
-            self.tof.stop_ranging()
-        except Exception as e:
-            self.logger.error(f"Error in stopping measuring sensor: {self.name} {e}")
+        self.sensor.cleanup()
 
-        if self.xshut:
-            try:
-                self.xshut.write(False)
-                self.xshut.close()
-            except Exception as e:
-                self.logger.error(f"Error in closing {self.name} sensor: {e}")
-
-class VL53L1XNode(Node):
+class ProximitySensorNode(Node):
     def __init__(self):
         super().__init__('vl53l1x_node')
 
         # Create sensors
+        hw_sensor_front_right = VL53L1XHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value, 0x32)
+        hw_sensor_front_left = VL53L1XHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value, 0x31)
+        hw_sensor_back_right = VL53L1XHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value, 0x30)
+        hw_sensor_back_left = VL53L1XHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value, 0x29)
+
         self.sensors : Dict[str, VL53L1X] = {
-            'back_right': VL53L1X(self, 'back_right', GPIO_pins.BACK_LEFT.value, 0x29)
-            #'back_left': VL53L1X(self, 'back_left', GPIO_pins.BACK_RIGHT.value, 0x30,),
-            #'front_right': VL53L1X(self, 'front_right', GPIO_pins.FRONT_LEFT.value, 0x31),
-            #'front_left': VL53L1X(self, 'front_left', GPIO_pins.FRONT_RIGHT.value, 0x32)
+            'back_left': VL53L1X(self, 'back_left', hw_sensor_back_left),
+            'back_right': VL53L1X(self, 'back_right', hw_sensor_back_right),
+            'front_left': VL53L1X(self, 'front_left', hw_sensor_front_left),
+            'front_right': VL53L1X(self, 'front_right', hw_sensor_front_right)
         }
 
 #        self.set_move_direction("Forward")
@@ -165,7 +109,7 @@ class VL53L1XNode(Node):
         self. set_move_direction(msg.data)
 
     def set_move_direction(self, direction: str):
-        self.get_logger().error(f"Setting move direction to: {direction}")
+        self.get_logger().info(f"Setting move direction to: {direction}")
         if direction in {"Forward", "Backward"}:
             self.move_direction = direction
             if direction == "Forward":
@@ -205,7 +149,7 @@ class VL53L1XNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = VL53L1XNode()
+    node = ProximitySensorNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

@@ -1,3 +1,4 @@
+# colcon test --packages-select safety_control
 # colcon build --symlink-install
 # source install/setup.bash
 # pytest src/safety_control/test/test_safety_control_node.py
