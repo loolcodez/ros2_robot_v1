@@ -51,6 +51,17 @@ class TestSensorWithCleanArchitecture(unittest.TestCase):
         data = json.loads(msg.data)
         assert data["distance"] == 150.0
 
+    def test_read_sensor_returns_none_and_logs_error_when_hardware_fails(self):
+
+        # Set error message as response for sensor reading
+        error_message = "back_left HW error: back_left sensor initialization failed on address: 0x30: VL53L1X not found on address: 29"
+        self.fake_hw.status = error_message
+        msg = self.sensor.read_sensor()
+        assert msg is None
+
+        # Mock logger message
+        self.mock_node.get_logger().error.assert_called_with(f"Sensor back_left HW error: {error_message}")
+
     def test_cleanup(self):
         self.sensor.cleanup()
 
