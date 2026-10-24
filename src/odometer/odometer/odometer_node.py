@@ -98,11 +98,13 @@ class OdometerNode(LifecycleNode):
         # Speeds (m/s and rad/s)
         odom.twist.twist.linear.x = d_center / dt
         odom.twist.twist.angular.z = d_theta / dt
-        self.get_logger().info(f"Speed linear.x {odom.twist.twist.linear.x}")
-        self.get_logger().info(f"Speed angular.z {odom.twist.twist.angular.z}")
-        self.get_logger().info(f"Position.x {odom.pose.pose.position.x}")
-        self.get_logger().info(f"Position.y {odom.pose.pose.position.y}")
-
+        self.get_logger().info(
+            f"Odom state | linear_x: {odom.twist.twist.linear.x:.2f}, "
+            f"angular_z: {odom.twist.twist.angular.z:.2f}, "
+            f"pos_x: {odom.pose.pose.position.x:.2f}, "
+            f"pos_y: {odom.pose.pose.position.y:.2f}",
+            throttle_duration_sec=1.0 # Print in log once per second
+        )
         self.odom_pub.publish(odom)
 
         self.previous_counts = current_counts
