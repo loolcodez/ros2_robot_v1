@@ -54,7 +54,7 @@ class TestSensorWithCleanArchitecture(unittest.TestCase):
     def test_read_sensor_returns_none_and_logs_error_when_hardware_fails(self):
 
         # Set error message as response for sensor reading
-        error_message = "back_left HW error: back_left sensor initialization failed on address: 0x30: VL53L1X not found on address: 29"
+        error_message = "back_left HW error: back_left sensor initialization failed on address: 0x30: VL53L1X not found on address: 0x29"
         self.fake_hw.status = error_message
         msg = self.sensor.read_sensor()
         assert msg is None

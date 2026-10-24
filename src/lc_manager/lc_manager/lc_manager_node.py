@@ -3,11 +3,17 @@ from rclpy.node import Node
 from lifecycle_msgs.srv import ChangeState
 from lifecycle_msgs.msg import Transition
 
+state_names = {
+    Transition.TRANSITION_CONFIGURE: "CONFIGURED (Inactive)",
+    Transition.TRANSITION_ACTIVATE: "ACTIVE",
+    Transition.TRANSITION_DEACTIVATE: "DEACTIVATED (Inactive)",
+    Transition.TRANSITION_CLEANUP: "UNCONFIGURED"
+}
 class LifecycleManagerNode(Node):
     def __init__(self, target_nodes=None):
         super().__init__('lifecycle_manager_node')
         # Add ordered list of nodes to be controlled
-        self.target_nodes = target_nodes or ['safety_control_node','websocket_node','light_control_node','driver_node','power_control_node','proximity_sensor_node','odometer_node']
+        self.target_nodes = target_nodes or ['websocket_node','proximity_sensor_node','safety_control_node','driver_node','power_control_node','odometer_node','light_control_node']
         self.lifecycle_clients = {}
 
         # Created service client for each controlled node
@@ -31,11 +37,12 @@ class LifecycleManagerNode(Node):
         rclpy.spin_until_future_complete(self, future)
 
         response = future.result()
+        state_text = state_names.get(transition_id, f"ID {transition_id}")
         if response and response.success:
-            self.get_logger().info(f'Node {node_name} moved to state {transition_id} successfully')
+            self.get_logger().info(f'Node {node_name} moved to state {state_text} successfully')
             return True
         else:
-            self.get_logger().error(f'Node {node_name} state change to state {transition_id} failed!')
+            self.get_logger().error(f'Node {node_name} state change to state {state_text} failed!')
             return False
 
     async def startup_robot(self):
