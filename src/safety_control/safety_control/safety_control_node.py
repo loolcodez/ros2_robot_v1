@@ -133,11 +133,12 @@ class SafetyControlNode(LifecycleNode):
                 twist_msg.angular.z = 0.0 # Turning may not need to be limited
                 self.get_logger().warn(
                     f"SafetyNode: Moving stopped! Road blocked: {self.current_distance_mm} mm. Drive command suspended",
-                    throttle_duration_sec=1.0  # Print in log once per second
+                    throttle_duration_sec=1.0 # Print in log once per second
                 )
         self.get_logger().info(
             f"SafetyNode: sending cmd_vel_out -> "
-            f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
+            f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}",
+            throttle_duration_sec=1.0 # Print in log once per second
         )
 
         # Publish filtered command to driver node
