@@ -39,10 +39,12 @@ class WebsocketNode(LifecycleNode):
         self.loop = asyncio.get_event_loop()
         self.loop.create_task(self.start_websocket_server())
         self.is_activated = True
+        return super().on_activate(state)
 
     def on_deactivate(self, state):
         self.get_logger().info("IN on_deactive state")
         self.is_activated = False
+        return super().on_activate(state)
 
     async def start_websocket_server(self):
         self.get_logger().info(f"Started Websocket on port: {self.port }")

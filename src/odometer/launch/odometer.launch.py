@@ -7,7 +7,7 @@ def generate_launch_description():
         Node(
             package='odometer',
             executable='odometer_node',
-            name='odometer',
+            name='odometer_node',
             output='screen'
 #            parameters=[config]
         )

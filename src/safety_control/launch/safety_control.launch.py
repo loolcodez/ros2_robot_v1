@@ -7,7 +7,7 @@ def generate_launch_description():
         Node(
             package='safety_control',
             executable='safety_control_node',
-            name='safety_control',
+            name='safety_control_node',
             output='screen'
 #            parameters=[config]
         )

@@ -9,7 +9,7 @@ def generate_launch_description():
         Node(
             package='proximity_sensor',
             executable='proximity_sensor_node',
-            name='proximity_sensor',
+            name='proximity_sensor_node',
             output='screen'
 #            parameters=[config]
         )
