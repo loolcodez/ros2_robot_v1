@@ -5,6 +5,7 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
+    lc_manager_launch_dir = os.path.join(get_package_share_directory('lc_manager'), 'launch')
     safety_launch_dir = os.path.join(get_package_share_directory('safety_control'), 'launch')
     power_launch_dir = os.path.join(get_package_share_directory('power_control'), 'launch')
     light_launch_dir = os.path.join(get_package_share_directory('light_control'), 'launch')
@@ -13,6 +14,10 @@ def generate_launch_description():
     websocket_launch_dir = os.path.join(get_package_share_directory('websocket'), 'launch')
     odometer_launch_dir = os.path.join(get_package_share_directory('odometer'), 'launch')
     driver_launch_dir = os.path.join(get_package_share_directory('driver'), 'launch')
+
+    launch_lc_manager = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(lc_manager_launch_dir, 'lc_manager.launch.py'))
+    )
 
     launch_safety_control = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(safety_launch_dir, 'safety_control.launch.py'))
@@ -47,6 +52,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        launch_lc_manager,
         launch_safety_control,
         launch_power_control,
         launch_light_control,

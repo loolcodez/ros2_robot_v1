@@ -2,12 +2,12 @@ import time
 import math
 from typing import List
 import rclpy
-from rclpy.node import Node
+from rclpy_lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from geometry_msgs.msg import Twist  # Standard message type for robot movement
 from sensor_msgs.msg import Imu   # Standard message type for IMU data
 from std_msgs.msg import Float32, String, Int32MultiArray
 
-class DriverNode(Node):
+class DriverNode(LifecycleNode):
     def __init__(self):
         super().__init__('driver_node')
         self.shutdown = False
@@ -35,7 +35,6 @@ class DriverNode(Node):
         ]
         self.max_linear = float(self.get_parameter('max_linear').get_parameter_value().double_value)
         self.max_angular = float(self.get_parameter('max_angular').get_parameter_value().double_value)
-
         # Control state: local encoder correction 'joystick_pid', direct' for self drive
         self.control_mode = 'joystick_pid'
 
@@ -54,37 +53,71 @@ class DriverNode(Node):
         # For encoder based speed tracking
         self.previous_encoders = [0.0] * 4
 
+        self.drive_control_sub : LifecyclePublisher
+        self.battery_voltage_pub : LifecyclePublisher
+        self.power_alert_sub : LifecyclePublisher
+        self.power_shutdown_sub : LifecyclePublisher
+        self.encoder_pub : LifecyclePublisher
+        self.imu_pub : LifecyclePublisher
+        self.driver : LifecyclePublisher
+        self.sensor_loop_timer : LifecyclePublisher
+        self.battery_publish_timer : LifecyclePublisher
 
-        # message = Twist()
-        # float(message.linear.x)
-        # float(message.angular.z)
-
-        # ROS2 communication
-#        self.manual_control_sub = self.create_subscription(message, 'cmd_vel_out', self.handle_speed_control_command, 10)
-        self.drive_control_sub = self.create_subscription(Twist, 'cmd_vel_out', self.handle_speed_control_command, 10)
+        # Publish initial battery status
         self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
-        self.power_alert_sub = self.create_subscription(String, '/power/alert', self.beep, 10)
-        self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
+        self.publish_battery()
 
-        # Sensor publishers
-        self.encoder_pub = self.create_publisher(Int32MultiArray, '/wheel_encoders', 10)
-        self.imu_pub = self.create_publisher(Imu, '/imu/data_raw', 10)
+        self.get_logger().info('DriveNode created')
+
+    def on_configure(self, state):
+        self.get_logger().info("IN on_configure state")
+        #self.read_configuration()
+        self.create_ros2_communication()
 
         self.driver = None
         if not self.initialize_driver():
-            self.get_logger().error('Failed to initialize Rosmaster driver')
-            raise RuntimeError('Rosmaster init failed')
+            self.get_logger().error('Failed to initialize driver card')
+            # Node stays in unconfigured state and there is not retry
+            # Returning ERROR would make possible to implement retry in separate on_error function.
+            return TransitionCallbackReturn.FAILURE
+
+        # Publish initial battery status
+        self.publish_battery()
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_activate(self, state):
+        self.get_logger().info("IN on_active state")
 
         # Read motor encoders
         self.sensor_loop_timer = self.create_timer(self.encoding_timer_delay, self.handle_sensors_and_control)
 
-        # Publish initial battery status
-        self.publish_battery()
         # Set timer which publishes battery status periodically
         period = 10.0 # 10s
         self.battery_publish_timer = self.create_timer(period, self.publish_battery)
+        self.shutdown = False
+        return super().on_activate(state)
 
-        self.get_logger().info('DriveNode created')
+    def on_deactivate(self, state):
+        self.get_logger().info("IN on_deactive state")
+        self.shutdown = True
+        return super().on_deactivate(state)
+
+    def create_ros2_communication(self):
+        # Call this on_activate function if you want to minimize power consumption on idle.
+        # Remember also destroy subscribers in on_deactivate in that case.
+
+        # message = Twist()
+        # float(message.linear.x)
+        # float(message.angular.z)
+#        self.manual_control_sub = self.create_lifecycle_subscription(message, 'cmd_vel_out', self.handle_speed_control_command, 10)
+        self.battery_voltage_pub = self.create_lifecycle_publisher(Float32, '/power/battery_voltage', 10)
+        self.drive_control_sub = self.create_lifecycle_subscription(Twist, 'cmd_vel_out', self.handle_speed_control_command, 10)
+        self.power_alert_sub = self.create_lifecycle_subscription(String, '/power/alert', self.beep, 10)
+        self.power_shutdown_sub = self.create_lifecycle_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
+
+        # Sensor publishers
+        self.encoder_pub = self.create_lifecycle_publisher(Int32MultiArray, '/wheel_encoders', 10)
+        self.imu_pub = self.create_lifecycle_publisher(Imu, '/imu/data_raw', 10)
 
     def initialize_driver(self) -> bool:
         """
