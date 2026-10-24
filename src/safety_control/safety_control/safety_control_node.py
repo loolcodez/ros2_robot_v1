@@ -6,7 +6,7 @@ from std_msgs.msg import String
 
 class SafetyControlNode(Node):
     def __init__(self):
-        super().__init__('safety_node')
+        super().__init__('safety_control_node')
 
         # Set speed correction value. Value range received from Joystick is -1 .. 1
         self.declare_parameter('max_linear', 60.0) # Speed. Must be in the range `[-100, 100]`

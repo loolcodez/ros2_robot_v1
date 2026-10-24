@@ -54,6 +54,9 @@ class VL53L1X():
         try:
             # # Read distance in millimeters
             distance = self.sensor.get_distance()
+            if isinstance(distance, str):
+                self.logger.error(f"Sensor {self.name} HW error: {distance}")
+                return None
 
             # Filter invalid values
             if distance <= self.min_dist or distance >= self.max_dist:
