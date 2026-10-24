@@ -1,12 +1,13 @@
 import json
 import rclpy
-from rclpy.node import Node
+from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 
-class SafetyControlNode(Node):
+class SafetyControlNode(LifecycleNode):
     def __init__(self):
         super().__init__('safety_control_node')
+        self.is_activated = False
 
         # Set speed correction value. Value range received from Joystick is -1 .. 1
         self.declare_parameter('max_linear', 60.0) # Speed. Must be in the range `[-100, 100]`
@@ -19,6 +20,16 @@ class SafetyControlNode(Node):
         self.max_linear = float(self.get_parameter('max_linear').get_parameter_value().double_value)
         self.max_angular = float(self.get_parameter('max_angular').get_parameter_value().double_value)
 
+        self.range_sub = None
+        self.manual_control_sub = None
+        self.manual_control_sub = None
+        self.power_alert_sub = None
+        self.cmd_vel_out_pub : LifecyclePublisher
+
+        self.get_logger().info(f"Safety Node started. Safety distance: {self.safety_distance_mm} mm")
+
+    def on_configure(self, state):
+        self.get_logger().info("IN on_configure state")
         # Listener for distance sensors
         self.range_sub = self.create_subscription(String, 'range', self.range_callback, 10)
 
@@ -32,12 +43,24 @@ class SafetyControlNode(Node):
         self.power_alert_sub = self.create_subscription(String, '/power/alert', self.power_alert_callback, 10)
 
         # Publisher for checked command
-        self.cmd_vel_out_pub = self.create_publisher(Twist, 'cmd_vel_out', 10)
+        self.cmd_vel_out_pub = self.create_lifecycle_publisher(Twist, 'cmd_vel_out', 10) # type: ignore reportAttributeAccessIssue
 
-        self.get_logger().info(f"Safety Node started. Safety distance: {self.safety_distance_mm} mm")
+
+        self.get_logger().info('Returning SUCCESS')
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_activate(self, state):
+        self.get_logger().info("IN on_active state")
+        self.is_activated = True
+
+    def on_deactivate(self, state):
+        self.get_logger().info("IN on_deactive state")
+        self.is_activated = False
 
     def range_callback(self, msg):
         """Update latest distance information"""
+        if not self.is_activated:
+            return
 
         json_message = json.loads(msg.data)
         self.sensor = json_message.get('sensor')
@@ -45,6 +68,8 @@ class SafetyControlNode(Node):
         self.get_logger().info(f"SafetyNode: Sensor: {self.sensor}, Distance: {self.current_distance_mm} mm")
 
     def power_alert_callback(self, msg):
+        if not self.is_activated:
+            return
         self.speed_limit_factor = 1
         if msg.data == "Low":
             self.speed_limit_factor = 0.5
@@ -54,6 +79,8 @@ class SafetyControlNode(Node):
 
     def cmd_vel_manual_callback(self, msg):
         """Check safety of incoming drive command"""
+        if not self.is_activated:
+            return
 
         # Get control data from JSON message
         json_message = json.loads(msg.data)
@@ -86,6 +113,8 @@ class SafetyControlNode(Node):
 
     def cmd_vel_in_callback(self, twist_msg):
         """Check safety of incoming drive command"""
+        if not self.is_activated:
+            return
 
         # Ensure maximum values are not exceed
         twist_msg.linear.x = max(-self.max_linear, min(self.max_linear, twist_msg.linear.x))

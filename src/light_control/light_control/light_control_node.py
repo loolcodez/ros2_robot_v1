@@ -16,6 +16,7 @@ from typing import Final, Dict
 from threading import Thread
 from periphery import GPIO
 import rclpy
+from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from rclpy.node import Node
 from std_msgs.msg import String
 
@@ -56,9 +57,28 @@ class Light:
                 self.gpio_object.write(False)
         print(f"Light '{self.name}' (GPIO {self.gpio_pin}) changed to: {self.state.name}")
 
-class LightsControlNode(Node):
+class LightsControlNode(LifecycleNode):
     def __init__(self):
         super().__init__('lights_control_node')
+
+        self.command_sub = Node
+        self.status_pub = LifecyclePublisher
+        self.is_activated = False
+        self.light_blinking = False
+        self.blink_thread = None
+        self.lights: Dict[str, Light]
+
+        self.get_logger().info('Lights Control Node started')
+
+    def on_configure(self, state):
+        self.get_logger().info("IN on_configure state")
+
+        self.lights = {
+            'front_left': Light("Front Left", GPIO_PINS['front_left']),
+            'front_right': Light("Front Right", GPIO_PINS['front_right']),
+            'back_left': Light("Back Left", GPIO_PINS['back_left']),
+            'back_right': Light("Back Right", GPIO_PINS['back_right'])
+        }
 
         # Subscribe light setting commands
         # "lights/front_on"
@@ -70,20 +90,18 @@ class LightsControlNode(Node):
         # "lights/all_off"
         self.command_sub = self.create_subscription(String, 'cmd_lights', self.command_callback, 10)
 
-        self.status_pub = self.create_publisher(String, 'lights_status', 10)
-
-        self.lights : Dict[str, Light] = {
-            'front_left': Light("Front Left", GPIO_PINS['front_left']),
-            'front_right': Light("Front Right", GPIO_PINS['front_right']),
-            'back_left': Light("Back Left", GPIO_PINS['back_left']),
-            'back_right': Light("Back Right", GPIO_PINS['back_right'])
-        }
-
-        self.light_blinking = False
-        self.blink_thread = None
-
+        self.status_pub = self.create_lifecycle_publisher(String, 'lights_status', 10)
         self.init_gpios()
-        self.get_logger().info('Lights Control Node started')
+        self.get_logger().info('Returning SUCCESS')
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_activate(self, state):
+        self.get_logger().info("IN on_active state")
+        self.is_activated = True
+
+    def on_deactivate(self, state):
+        self.get_logger().info("IN on_deactive state")
+        self.is_activated = False
 
     def init_gpios(self):
         """Initialize GPIO objects for Light objects"""
@@ -127,41 +145,40 @@ class LightsControlNode(Node):
         self.lights[name].set_pin_state(new_state)
 
     def command_callback(self, msg: String):
+        if not self.is_activated:
+            return
         cmd = msg.data.lower()
         self.get_logger().info(f"Received command: {cmd}")
         if cmd == "lights/front_on":
             self.get_logger().info("Front lights ON")
             self.set_front_lights(LightState.ON)
-            return
-        if cmd == "lights/front_off":
+        elif cmd == "lights/front_off":
             self.get_logger().info("Front lights OFF")
             self.set_front_lights(LightState.OFF)
-            return
-        if cmd == "lights/back_on":
+        elif cmd == "lights/back_on":
             self.get_logger().info("Back lights ON")
             self.set_back_lights(LightState.ON)
-            return
-        if cmd == "lights/back_off":
+        elif cmd == "lights/back_off":
             self.get_logger().info("Back lights OFF")
             self.set_back_lights(LightState.OFF)
-            return
-        if cmd == "lights/emergency_on":
+        elif cmd == "lights/emergency_on":
             if self.light_blinking is False:
                 self.get_logger().info("Emergency lights ON")
                 self.set_emergency_lights_on()
                 self.light_blinking = True
                 self.start_blinking()
-            return
-        if cmd == "lights/emergency_off":
+        elif cmd == "lights/emergency_off":
             if self.light_blinking is True:
                 self.get_logger().info("Emergency lights OFF")
                 self.light_blinking = False
                 self.set_emergency_lights_off()
             return
-        if cmd == "lights/all_off":
+        elif cmd == "lights/all_off":
             self.get_logger().info("All lights OFF")
             self.set_all_lights_off()
-        self.get_logger().error(f"Unknown light setting command: {cmd}")
+        else:
+            self.get_logger().error(f"Unknown light setting command: {cmd}")
+        self.publish_status()
 
     def start_blinking(self):
         self.blink_thread = Thread(target=self._blink_loop)
@@ -186,7 +203,7 @@ class LightsControlNode(Node):
         }
         msg = String()
         msg.data = json.dumps(status)
-        self.status_pub.publish(msg)
+        self.status_pub.publish(msg) # type: ignore  # pylint: disable=no-value-for-parameter
 
 def main(args=None):
     rclpy.init(args=args)
