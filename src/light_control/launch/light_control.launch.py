@@ -9,7 +9,7 @@ def generate_launch_description():
         Node(
             package='light_control',
             executable='light_control_node',
-            name='light_control',
+            name='light_control_node',
             output='screen'
 #            parameters=[config]
         )

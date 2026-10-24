@@ -7,7 +7,7 @@ def generate_launch_description():
         Node(
             package='websocket',
             executable='websocket_node',
-            name='websocket',
+            name='websocket_node',
             output='screen'
 #            parameters=[config]
         )

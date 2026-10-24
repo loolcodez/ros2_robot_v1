@@ -98,10 +98,12 @@ class LightsControlNode(LifecycleNode):
     def on_activate(self, state):
         self.get_logger().info("IN on_active state")
         self.is_activated = True
+        return super().on_activate(state)
 
     def on_deactivate(self, state):
         self.get_logger().info("IN on_deactive state")
         self.is_activated = False
+        return super().on_activate(state)
 
     def init_gpios(self):
         """Initialize GPIO objects for Light objects"""
