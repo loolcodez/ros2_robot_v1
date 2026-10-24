@@ -95,10 +95,14 @@ class ProximitySensorNode(LifecycleNode):
         self.get_logger().info("IN on_configure state")
 
         # Create sensors
-        hw_sensor_front_right = VL53L1XHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value, 0x32)
-        hw_sensor_front_left = VL53L1XHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value, 0x31)
-        hw_sensor_back_right = VL53L1XHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value, 0x30)
-        hw_sensor_back_left = VL53L1XHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value, 0x29)
+        # hw_sensor_front_right = VL53L1XHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value, 0x32)
+        # hw_sensor_front_left = VL53L1XHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value, 0x31)
+        # hw_sensor_back_right = VL53L1XHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value, 0x30)
+        # hw_sensor_back_left = VL53L1XHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value, 0x29)
+        hw_sensor_front_right = VL53L1XHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value, 44)
+        hw_sensor_front_left = VL53L1XHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value, 43)
+        hw_sensor_back_right = VL53L1XHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value, 41)
+        hw_sensor_back_left = VL53L1XHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value, 41)
 
         self.sensors = {
             'back_left': VL53L1X(self, 'back_left', hw_sensor_back_left),

@@ -27,8 +27,10 @@ class VL53L1XHardwareInterface:
 
         try:
             # Sensor wakes up using default 0x29 address
-            self.tof = ToFSensor.VL53L1X(i2c_bus=0, i2c_address=0x29)
-            if address != 0x29:
+#            self.tof = ToFSensor.VL53L1X(i2c_bus=0, i2c_address=0x29)
+#            if address != 0x29:
+            self.tof = ToFSensor.VL53L1X(i2c_bus=0, i2c_address=0x41)
+            if address != 41:
                 self.tof.open()
                 self.tof.change_address(address)
                 self.tof.close()
