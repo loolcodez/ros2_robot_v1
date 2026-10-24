@@ -9,7 +9,7 @@ def generate_launch_description():
         Node(
             package='lc_manager',
             executable='lifecycle_manager_node',
-            name='lc_manager',
+            name='lifecycle_manager_node',
             output='screen'
 #            parameters=[config]
         )
