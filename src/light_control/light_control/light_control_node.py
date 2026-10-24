@@ -68,7 +68,7 @@ class LightsControlNode(LifecycleNode):
         self.blink_thread = None
         self.lights: Dict[str, Light]
 
-        self.get_logger().info('Lights Control Node started')
+        self.get_logger().info('Lights Control Node created')
 
     def on_configure(self, state):
         self.get_logger().info("IN on_configure state")
