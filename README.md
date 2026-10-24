@@ -274,14 +274,15 @@ sudo apt install python3-websockets
 
 cd src
 
-ros2 pkg create --build-type ament_python --node-name power_control power_control
+ros2 pkg create --build-type ament_python --node-name robot_bringup robot_bringup
 ros2 pkg create --build-type ament_python --node-name websocket websocket
 ros2 pkg create --build-type ament_python --node-name driver driver
+ros2 pkg create --build-type ament_python --node-name power_control power_control
 ros2 pkg create --build-type ament_python --node-name light_control light_control
 ros2 pkg create --build-type ament_python --node-name proximity_sensor proximity_sensor
 ros2 pkg create --build-type ament_python --node-name safety_control safety_control
 ros2 pkg create --build-type ament_python --node-name odometer odometer
-ros2 pkg create --build-type ament_python --node-name odometer odometer
+ros2 pkg create --build-type ament_python --node-name lc_manager lc_manager
 
 sudo usermod -aG gpio orangepi
 
@@ -332,3 +333,7 @@ sudo i2cdetect -y 0
 # Asennetaan paketit suoraan viralliseen järjestelmäpolkuun, jota ROS 2 ei voi ohittaa
 sudo pip install smbus2 vl53l1x python-periphery --target=/usr/lib/python3/dist-packages --break-system-packages
 
+# Test lifecycle manager with driver node
+source install/setup.bash
+ros2 launch driver driver.launch.py
+ros2 launch lc_manager lc_manager.py
