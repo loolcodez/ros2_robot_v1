@@ -2,7 +2,7 @@ import time
 import math
 from typing import List
 import rclpy
-from rclpy_lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
+from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from geometry_msgs.msg import Twist  # Standard message type for robot movement
 from sensor_msgs.msg import Imu   # Standard message type for IMU data
 from std_msgs.msg import Float32, String, Int32MultiArray
@@ -27,6 +27,7 @@ class DriverNode(LifecycleNode):
         self.port = self.get_parameter('port').get_parameter_value().string_value
         self.baudrate = self.get_parameter('baudrate').get_parameter_value().integer_value
 
+        self.driver = None # type: ignore
         self.invert = [
             bool(self.get_parameter('invert_motor_1').get_parameter_value().bool_value), # left front
             bool(self.get_parameter('invert_motor_2').get_parameter_value().bool_value), # right front
@@ -53,19 +54,22 @@ class DriverNode(LifecycleNode):
         # For encoder based speed tracking
         self.previous_encoders = [0.0] * 4
 
-        self.drive_control_sub : LifecyclePublisher
+        self.drive_control_sub = None
+        self.power_alert_sub = None
+        self.power_shutdown_sub = None
         self.battery_voltage_pub : LifecyclePublisher
-        self.power_alert_sub : LifecyclePublisher
-        self.power_shutdown_sub : LifecyclePublisher
         self.encoder_pub : LifecyclePublisher
         self.imu_pub : LifecyclePublisher
         self.driver : LifecyclePublisher
-        self.sensor_loop_timer : LifecyclePublisher
-        self.battery_publish_timer : LifecyclePublisher
 
-        # Publish initial battery status
-        self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
-        self.publish_battery()
+        # For timers
+        self.sensor_loop_timer = None
+        self.battery_publish_timer = None
+
+
+        # # Publish initial battery status
+        # self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
+        # self.publish_battery()
 
         self.get_logger().info('DriveNode created')
 
@@ -74,15 +78,16 @@ class DriverNode(LifecycleNode):
         #self.read_configuration()
         self.create_ros2_communication()
 
-        self.driver = None
         if not self.initialize_driver():
             self.get_logger().error('Failed to initialize driver card')
             # Node stays in unconfigured state and there is not retry
             # Returning ERROR would make possible to implement retry in separate on_error function.
+            self.get_logger().error('Returning FAILURE')
             return TransitionCallbackReturn.FAILURE
 
         # Publish initial battery status
         self.publish_battery()
+        self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS
 
     def on_activate(self, state):
@@ -109,15 +114,16 @@ class DriverNode(LifecycleNode):
         # message = Twist()
         # float(message.linear.x)
         # float(message.angular.z)
-#        self.manual_control_sub = self.create_lifecycle_subscription(message, 'cmd_vel_out', self.handle_speed_control_command, 10)
-        self.battery_voltage_pub = self.create_lifecycle_publisher(Float32, '/power/battery_voltage', 10)
-        self.drive_control_sub = self.create_lifecycle_subscription(Twist, 'cmd_vel_out', self.handle_speed_control_command, 10)
-        self.power_alert_sub = self.create_lifecycle_subscription(String, '/power/alert', self.beep, 10)
-        self.power_shutdown_sub = self.create_lifecycle_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
+#        self.manual_control_sub = self.create_subscription(message, 'cmd_vel_out', self.handle_speed_control_command, 10)
+        self.drive_control_sub = self.create_subscription(Twist, 'cmd_vel_out', self.handle_speed_control_command, 10)
+        self.power_alert_sub = self.create_subscription(String, '/power/alert', self.beep, 10)
+        self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
 
         # Sensor publishers
-        self.encoder_pub = self.create_lifecycle_publisher(Int32MultiArray, '/wheel_encoders', 10)
-        self.imu_pub = self.create_lifecycle_publisher(Imu, '/imu/data_raw', 10)
+        self.battery_voltage_pub = self.create_lifecycle_publisher(Float32, '/power/battery_voltage', 10) # type: ignore
+        self.encoder_pub = self.create_lifecycle_publisher(Int32MultiArray, '/wheel_encoders', 10) # type: ignore
+        self.imu_pub = self.create_lifecycle_publisher(Imu, '/imu/data_raw', 10) # type: ignore
+        self.get_logger().info('ROS2 communications created')
 
     def initialize_driver(self) -> bool:
         """
@@ -136,18 +142,18 @@ class DriverNode(LifecycleNode):
             # Some vendor libraries accept com/port, some do not.
             # Start with the simplest constructor first.
             try:
-                self.driver = Rosmaster(com=self.port, debug=False)
+                self.driver = Rosmaster(com=self.port, debug=False) # type: ignore
             except TypeError:
-                self.driver = Rosmaster()
+                self.driver = Rosmaster() # type: ignore
 
-            self.driver.create_receive_threading()
-            self.driver.clear_auto_report_data()
+            self.driver.create_receive_threading() # type: ignore
+            self.driver.clear_auto_report_data() # type: ignore
 
-            self.get_logger().info(f'Rosmaster initialized on port {self.port}')
+            self.get_logger().info(f'Driver card initialized on port {self.port}')
             return True
 
         except Exception as exc:
-            self.get_logger().error(f'Rosmaster initialization error: {exc}')
+            self.get_logger().error(f'Driver card initialization error: {exc}')
             return False
 
     def beep(self, msg):
@@ -164,7 +170,8 @@ class DriverNode(LifecycleNode):
         # `on_time` must be a multiple of 10 for timed operation
         for _ in range(beep_count):
             on_time = 100 # 100ms
-            self.driver.set_beep(on_time)
+            self.driver.set_beep(on_time) # type: ignore
+
             time.sleep(1)
 
     def handle_speed_control_command(self, msg):
@@ -197,7 +204,7 @@ class DriverNode(LifecycleNode):
 
         try:
             # Publish encoder sensor data
-            raw_encoders = self.driver.get_motor_encoder()
+            raw_encoders = self.driver.get_motor_encoder() # type: ignore
             current_encoders = [float(v) for v in raw_encoders]
 
             enc_msg = Int32MultiArray()
@@ -219,7 +226,7 @@ class DriverNode(LifecycleNode):
                 self.filtered_motor_speeds = [0.0] * 4
                 self.integral_error = [0.0] * 4
                 self.previous_error = [0.0] * 4
-                self.driver.set_motor(0, 0, 0, 0)
+                self.driver.set_motor(0, 0, 0, 0) # type: ignore
 
             elif self.control_mode == 'joystick_pid':
                 delta_encoders = [curr - prev for curr, prev in zip(current_encoders, self.previous_encoders)]
@@ -262,7 +269,7 @@ class DriverNode(LifecycleNode):
             return
 
         try:
-            self.driver.set_motor(
+            self.driver.set_motor(  # type: ignore
                 speeds[0],
                 speeds[1],
                 speeds[2],
@@ -282,8 +289,8 @@ class DriverNode(LifecycleNode):
 
         try:
             # Read raw IMU sensor data
-            accel = self.driver.get_accelerometer_data()  # Returns (a_x, a_y, a_z)
-            gyro = self.driver.get_gyroscope_data()       # Returns (g_x, g_y, g_z)
+            accel = self.driver.get_accelerometer_data()  # type: ignore # Returns (a_x, a_y, a_z)
+            gyro = self.driver.get_gyroscope_data()  # type: ignore      # Returns (g_x, g_y, g_z)
 
             # Conversion to ROS2 unit (SI-unit)
             deg_to_rad = math.pi / 180.0
@@ -342,7 +349,7 @@ class DriverNode(LifecycleNode):
             return
 
         try:
-            voltage = float(self.driver.get_battery_voltage())
+            voltage = float(self.driver.get_battery_voltage())# type: ignore
             msg = Float32()
             msg.data = voltage
             self.battery_voltage_pub.publish(msg)

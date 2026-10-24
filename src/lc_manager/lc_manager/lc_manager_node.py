@@ -3,7 +3,7 @@ from rclpy.node import Node
 from lifecycle_msgs.srv import ChangeState
 from lifecycle_msgs.msg import Transition
 
-class LifecycleManager(Node):
+class LifecycleManagerNode(Node):
     def __init__(self, target_nodes=None):
         super().__init__('lifecycle_manager_node')
         # Add ordered list of nodes to be controlled
@@ -17,7 +17,7 @@ class LifecycleManager(Node):
             self.lifecycle_clients[node_name] = self.create_client(ChangeState, srv_name)
 
     async def change_node_state(self, node_name: str, transition_id: int) -> bool:
-        """Command node chnages"""
+        """Command node changes"""
         client = self.lifecycle_clients[node_name]
 
         if not client.wait_for_service(timeout_sec=2.0):
@@ -47,13 +47,13 @@ class LifecycleManager(Node):
             # Set node on_configure state (Transition ID 1)
             success = await self.change_node_state(node_name, Transition.TRANSITION_CONFIGURE)
             if not success:
-                self.get_logger().error('Node startup prevented due to an error {node_name}!')
+                self.get_logger().error(f'Node startup prevented due to an error {node_name}!')
                 return False
 
             # Set node to on_activate (Transition ID 3 = Activate)
             success = await self.change_node_state(node_name, Transition.TRANSITION_ACTIVATE)
             if not success:
-                self.get_logger().error('Node startup stopped due to an error on node {node_name}!')
+                self.get_logger().error(f'Node startup stopped due to an error on node {node_name}!')
                 return False
 
         self.get_logger().info('All nodes are ready and active!')
@@ -61,7 +61,7 @@ class LifecycleManager(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    manager = LifecycleManager()
+    manager = LifecycleManagerNode()
 
     # Run asynchronously startup sequence
     import asyncio

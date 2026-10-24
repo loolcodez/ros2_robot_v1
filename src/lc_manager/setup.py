@@ -28,7 +28,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'lc_manager_node = lc_manager.lc_manager_node:main'
+            'lifecycle_manager_node = lc_manager.lc_manager_node:main'
         ],
     },
 )
