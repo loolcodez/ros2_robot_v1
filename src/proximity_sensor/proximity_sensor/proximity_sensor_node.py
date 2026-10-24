@@ -38,8 +38,7 @@ class VL53L1X():
         self.logger.info(f"starting ranging on sensor {self.name}")
         try:
             # Set measurement profile (1 = Short range, 2 = Long range)
-            self.sensor.start_ranging()
-            #self.sensor.start_ranging(2)
+            self.sensor.start_ranging(2)
         except Exception as e:
             self.logger.error(f"starting ranging on sensor {self.name} failed: {e}")
 
@@ -84,7 +83,7 @@ class VL53L1X():
 
 class ProximitySensorNode(LifecycleNode):
     def __init__(self):
-        super().__init__('vl53l1x_node')
+        super().__init__('proximity_sensor_node')
         self.is_activated = False
         self.move_direction = "Forward"
         self.sensors : Dict[str, VL53L1X]
@@ -113,15 +112,15 @@ class ProximitySensorNode(LifecycleNode):
         self.move_direction_sub = self.create_subscription(String, '/move/direction', self.set_move_direction_callback, 10)
         self.pub_range = self.create_lifecycle_publisher(String, 'range', 10) # type: ignore reportAttributeAccessIssue
 
-        # Create timer which expires after every 0.1 second (10 Hz) and publishes sensor data
-        self.timer = self.create_timer(0.1, self.read_and_publish)
-
         self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS
 
     def on_activate(self, state):
         self.get_logger().info("IN on_active state")
         self.is_activated = True
+        # Create timer which expires after every 0.1 second (10 Hz) and publishes sensor data
+        self.timer = self.create_timer(0.1, self.read_and_publish)
+
         return super().on_activate(state)
 
     def on_deactivate(self, state):

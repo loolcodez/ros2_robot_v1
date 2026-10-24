@@ -26,7 +26,7 @@ class SafetyControlNode(LifecycleNode):
         self.power_alert_sub = None
         self.cmd_vel_out_pub : LifecyclePublisher
 
-        self.get_logger().info(f"Safety Node started. Safety distance: {self.safety_distance_mm} mm")
+        self.get_logger().info(f"Safety Node created. Safety distance: {self.safety_distance_mm} mm")
 
     def on_configure(self, state):
         self.get_logger().info("IN on_configure state")

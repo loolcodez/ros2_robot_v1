@@ -18,6 +18,7 @@ class WebsocketNode(LifecycleNode):
         self.connection_status_publisher : LifecyclePublisher
         self.battery_status_subscription = None
 
+        self.get_logger().info("Websocket node created")
 
     def on_configure(self, state):
         self.get_logger().info("IN on_configure state")

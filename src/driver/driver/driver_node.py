@@ -66,11 +66,6 @@ class DriverNode(LifecycleNode):
         self.sensor_loop_timer = None
         self.battery_publish_timer = None
 
-
-        # # Publish initial battery status
-        # self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
-        # self.publish_battery()
-
         self.get_logger().info('DriveNode created')
 
     def on_configure(self, state):
