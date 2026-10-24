@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Final, Dict
 from collections import deque
 import rclpy
-from rclpy.node import Node
+from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from std_msgs.msg import String
 from proximity_sensor.hardware_interface import VL53L1XHardwareInterface
 
@@ -22,7 +22,7 @@ class GPIO_pins(Enum):
     BACK_RIGHT = 272
 
 class VL53L1X():
-    def __init__(self, node: Node, name: str, hardware_interface):
+    def __init__(self, node: LifecycleNode, name: str, hardware_interface):
         self.sensor = hardware_interface
         self.name: Final[str] = name
         self.logger = node.get_logger()
@@ -82,9 +82,18 @@ class VL53L1X():
     def cleanup(self):
         self.sensor.cleanup()
 
-class ProximitySensorNode(Node):
+class ProximitySensorNode(LifecycleNode):
     def __init__(self):
         super().__init__('vl53l1x_node')
+        self.is_activated = False
+        self.move_direction = "Forward"
+        self.sensors : Dict[str, VL53L1X]
+        self.move_direction_sub = None
+        self.pub_range : LifecyclePublisher
+        self.timer = None
+
+    def on_configure(self, state):
+        self.get_logger().info("IN on_configure state")
 
         # Create sensors
         hw_sensor_front_right = VL53L1XHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value, 0x32)
@@ -92,24 +101,36 @@ class ProximitySensorNode(Node):
         hw_sensor_back_right = VL53L1XHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value, 0x30)
         hw_sensor_back_left = VL53L1XHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value, 0x29)
 
-        self.sensors : Dict[str, VL53L1X] = {
+        self.sensors = {
             'back_left': VL53L1X(self, 'back_left', hw_sensor_back_left),
             'back_right': VL53L1X(self, 'back_right', hw_sensor_back_right),
             'front_left': VL53L1X(self, 'front_left', hw_sensor_front_left),
             'front_right': VL53L1X(self, 'front_right', hw_sensor_front_right)
         }
-
 #        self.set_move_direction("Forward")
         self.set_move_direction("Backward")
 
         self.move_direction_sub = self.create_subscription(String, '/move/direction', self.set_move_direction_callback, 10)
-        self.pub_range = self.create_publisher(String, 'range', 10)
+        self.pub_range = self.create_lifecycle_publisher(String, 'range', 10) # type: ignore reportAttributeAccessIssue
 
         # Create timer which expires after every 0.1 second (10 Hz) and publishes sensor data
         self.timer = self.create_timer(0.1, self.read_and_publish)
 
+        self.get_logger().info('Returning SUCCESS')
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_activate(self, state):
+        self.get_logger().info("IN on_active state")
+        self.is_activated = True
+
+    def on_deactivate(self, state):
+        self.get_logger().info("IN on_deactive state")
+        self.is_activated = False
+
     def set_move_direction_callback(self, msg: String):
-        self. set_move_direction(msg.data)
+        if not self.is_activated:
+            return
+        self.set_move_direction(msg.data)
 
     def set_move_direction(self, direction: str):
         self.get_logger().info(f"Setting move direction to: {direction}")

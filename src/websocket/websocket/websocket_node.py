@@ -1,29 +1,48 @@
 import asyncio
 import rclpy
-from rclpy.node import Node
+from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from std_msgs.msg import String
 import websockets
 
-class WebsocketNode(Node):
+class WebsocketNode(LifecycleNode):
 
     def __init__(self):
         super().__init__("websocket")
+        self.is_activated = False
         self.port = 6789
+        self.loop = None
+        # Store for active connections
+        self.connected_clients = set()
+
+        self.move_command_publisher : LifecyclePublisher
+        self.connection_status_publisher : LifecyclePublisher
+        self.battery_status_subscription = None
+
+
+    def on_configure(self, state):
+        self.get_logger().info("IN on_configure state")
 
         # Create Publisher for command coming from websocket
-        self.move_command_publisher = self.create_publisher(String, 'cmd_vel_manual', 10)
+        self.move_command_publisher = self.create_lifecycle_publisher(String, 'cmd_vel_manual', 10) # type: ignore reportAttributeAccessIssue
 
         # Create Publisher for connection status, connected/disconnected
-        self.connection_status_publisher = self.create_publisher(String, '/connection/status', 10)
+        self.connection_status_publisher = self.create_lifecycle_publisher(String, '/connection/status', 10) # type: ignore reportAttributeAccessIssue
 
         # Create subscriber for battery status
         self.battery_status_subscription = self.create_subscription(String, '/power/battery_status', self.forward_battery_status, 10)
 
-        # Store for active connections
-        self.connected_clients = set()
+        self.get_logger().info('Returning SUCCESS')
+        return TransitionCallbackReturn.SUCCESS
 
+    def on_activate(self, state):
+        self.get_logger().info("IN on_active state")
         self.loop = asyncio.get_event_loop()
         self.loop.create_task(self.start_websocket_server())
+        self.is_activated = True
+
+    def on_deactivate(self, state):
+        self.get_logger().info("IN on_deactive state")
+        self.is_activated = False
 
     async def start_websocket_server(self):
         self.get_logger().info(f"Started Websocket on port: {self.port }")
@@ -57,8 +76,11 @@ class WebsocketNode(Node):
 
     def forward_battery_status(self, msg):
         # Handle battery status message coming from another ROS Node
+        if not self.is_activated:
+            return
         self.get_logger().info(f"Sending battery status: {msg.data}")
-        asyncio.run_coroutine_threadsafe(self.broadcast_to_ws(msg.data), self.loop)
+        if self.loop:
+            asyncio.run_coroutine_threadsafe(self.broadcast_to_ws(msg.data), self.loop)
 
     async def broadcast_to_ws(self, text_data):
         # Send response to all connected websocket clients

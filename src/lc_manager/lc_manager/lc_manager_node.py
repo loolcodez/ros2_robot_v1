@@ -7,8 +7,7 @@ class LifecycleManagerNode(Node):
     def __init__(self, target_nodes=None):
         super().__init__('lifecycle_manager_node')
         # Add ordered list of nodes to be controlled
-#        self.target_nodes = target_nodes or ['power_control_node', 'driver_node']
-        self.target_nodes = target_nodes or ['driver_node']
+        self.target_nodes = target_nodes or ['safety_node','websocket_node','light_control_node','driver_node','power_control_node','proximity_control_node','odometer_node']
         self.lifecycle_clients = {}
 
         # Created service client for each controlled node

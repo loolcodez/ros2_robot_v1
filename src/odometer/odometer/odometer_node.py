@@ -1,12 +1,13 @@
 import math
 import rclpy
-from rclpy.node import Node
+from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from std_msgs.msg import Int32MultiArray
 from nav_msgs.msg import Odometry
 
-class OdometerNode(Node):
+class OdometerNode(LifecycleNode):
     def __init__(self):
         super().__init__('odometer_node')
+        self.is_activated = False
 
         # Physical dimensions
         self.counts_per_revolution = 1320.0 # Encoder counts
@@ -20,14 +21,30 @@ class OdometerNode(Node):
         self.x = 0.0
         self.y = 0.0
         self.th = 0.0
+        self.encoder_sub = None
+        self.odom_pub : LifecyclePublisher
+        self.get_logger().info('OdometerNode created')
+
+    def on_configure(self, state):
+        self.get_logger().info("IN on_configure state")
 
         self.encoder_sub = self.create_subscription(Int32MultiArray, '/wheel_encoders', self.process_encoders, 10)
 
-        self.odom_pub = self.create_publisher(Odometry, '/odom_wheel', 10)
+        self.odom_pub = self.create_publisher(Odometry, '/odom_wheel', 10) # type: ignore
+        self.get_logger().info('Returning SUCCESS')
+        return TransitionCallbackReturn.SUCCESS
 
-        self.get_logger().info('OdometerNode created')
+    def on_activate(self, state):
+        self.get_logger().info("IN on_active state")
+        self.is_activated = True
+
+    def on_deactivate(self, state):
+        self.get_logger().info("IN on_deactive state")
+        self.is_activated = False
 
     def process_encoders(self, msg):
+        if not self.is_activated:
+            return
         current_time = self.get_clock().now()
         dt = (current_time - self.last_time).nanoseconds / 1e9
         if dt <= 0:
