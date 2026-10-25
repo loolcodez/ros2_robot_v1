@@ -12,8 +12,9 @@ from typing import Final, Dict
 from collections import deque
 import rclpy
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
-from std_msgs.msg import String
-from proximity_sensor.hardware_interface import VL53L1XHardwareInterface
+from std_msgs.msg import String, Float32MultiArray
+from smbus2 import SMBus
+from proximity_sensor.hardware_interface import VL53L5CXHardwareInterface
 
 class GPIO_pins(Enum):
     FRONT_LEFT = 256
@@ -21,7 +22,7 @@ class GPIO_pins(Enum):
     BACK_LEFT = 258
     BACK_RIGHT = 272
 
-class VL53L1X():
+class VL53L5CX():
     def __init__(self, node: LifecycleNode, name: str, hardware_interface):
         self.sensor = hardware_interface
         self.name: Final[str] = name
@@ -37,8 +38,7 @@ class VL53L1X():
     def start_ranging(self):
         self.logger.info(f"starting ranging on sensor {self.name}")
         try:
-            # Set measurement profile (1 = Short range, 2 = Long range)
-            self.sensor.start_ranging(2)
+            self.sensor.start_ranging()
         except Exception as e:
             self.logger.error(f"starting ranging on sensor {self.name} failed: {e}")
 
@@ -51,7 +51,28 @@ class VL53L1X():
 
     def read_sensor(self):
         try:
-            # # Read distance in millimeters
+            # Read distance in millimeters
+            distances, status_info, status = self.sensor.get_distances_and_statuses()
+            if status == "NO_NEW_DATA":
+                return None, None, status
+
+            if isinstance(distances, str):
+                self.logger.error(f"Sensor {self.name} HW error: {status}")
+                return None, None, status
+
+            # Nyt tulostus toimii kauniisti numerolistoina!
+            self.logger.info(f"Sensor: {self.name}, distances: {distances}",
+                             throttle_duration_sec=1.0) # Print in log once per second
+            self.logger.info(f"Sensor: {self.name}, statuses: {status_info}",
+                             throttle_duration_sec=1.0) # Print in log once per second
+            return distances, status_info, status
+        except Exception as e:
+            self.logger.error(f"Error in reading sensor: {self.name} {e}")
+            return None, None, f"ERROR: {e}"
+
+    def read_sensor_old(self):
+        try:
+            # Read distance in millimeters
             distance = self.sensor.get_distance()
             if isinstance(distance, str):
                 self.logger.error(f"Sensor {self.name} HW error: {distance}")
@@ -85,32 +106,51 @@ class ProximitySensorNode(LifecycleNode):
     def __init__(self):
         super().__init__('proximity_sensor_node')
         self.is_activated = False
-        self.move_direction = "Forward"
-        self.sensors : Dict[str, VL53L1X]
+        self.move_direction = "stop"
+        self.sensors : Dict[str, VL53L5CX]
+        self.active_sensors = {}
         self.move_direction_sub = None
         self.pub_range : LifecyclePublisher
+        self.smbus = None
         self.timer = None
 
     def on_configure(self, state):
         self.get_logger().info("IN on_configure state")
 
+        # Define bus for I2C communication. Defined at /boot/orangepiEnv.txt (overlays=pi-i2c0 pi-i2c2)
+        smbus0 = SMBus(0) # sudo i2cdetect -y 0
+        smbus3 = SMBus(3) # sudo i2cdetect -y 3
+
         # Create sensors
-        hw_sensor_front_right = VL53L1XHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value, 0x32)
-        hw_sensor_front_left = VL53L1XHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value, 0x31)
-        hw_sensor_back_right = VL53L1XHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value, 0x30)
-        hw_sensor_back_left = VL53L1XHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value, 0x29)
+        hw_sensor_front_left = VL53L5CXHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value)
+        hw_sensor_front_right = VL53L5CXHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value)
+        hw_sensor_back_right = VL53L5CXHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value)
+        hw_sensor_back_left = VL53L5CXHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value)
+
+        try:
+            status = hw_sensor_front_left.initialize_sensor(smbus3, 0x30)
+            self.get_logger().info(f"hw_sensor_front_left: {status}")
+            status = hw_sensor_front_right.initialize_sensor(smbus3, 0x29)
+            self.get_logger().info(f"hw_sensor_front_right: {status}")
+            status = hw_sensor_back_right.initialize_sensor(smbus0, 0x30)
+            self.get_logger().info(f"hw_sensor_back_right: {status}")
+            status = hw_sensor_back_left.initialize_sensor(smbus0, 0x29)
+            self.get_logger().info(f"hw_sensor_back_left: {status}")
+        except Exception as e:
+            return f"Error in initilizing sensor: {e}"
 
         self.sensors = {
-            'back_left': VL53L1X(self, 'back_left', hw_sensor_back_left),
-            'back_right': VL53L1X(self, 'back_right', hw_sensor_back_right),
-            'front_left': VL53L1X(self, 'front_left', hw_sensor_front_left),
-            'front_right': VL53L1X(self, 'front_right', hw_sensor_front_right)
+            'front_left': VL53L5CX(self, 'front_left', hw_sensor_front_left),
+            'front_right': VL53L5CX(self, 'front_right', hw_sensor_front_right),
+            'back_left': VL53L5CX(self, 'back_left', hw_sensor_back_left),
+            'back_right': VL53L5CX(self, 'back_right', hw_sensor_back_right)
         }
-#        self.set_move_direction("Forward")
-        self.set_move_direction("Backward")
+
+        self.set_move_direction("forward")
 
         self.move_direction_sub = self.create_subscription(String, '/move/direction', self.set_move_direction_callback, 10)
-        self.pub_range = self.create_lifecycle_publisher(String, 'range', 10) # type: ignore reportAttributeAccessIssue
+#        self.pub_range = self.create_lifecycle_publisher(String, 'range', 10) # type: ignore reportAttributeAccessIssue
+        self.pub_range = self.create_lifecycle_publisher(Float32MultiArray, 'tof/range', 10) # type: ignore reportAttributeAccessIssue
 
         self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS
@@ -118,8 +158,12 @@ class ProximitySensorNode(LifecycleNode):
     def on_activate(self, state):
         self.get_logger().info("IN on_active state")
         self.is_activated = True
-        # Create timer which expires after every 0.1 second (10 Hz) and publishes sensor data
-        self.timer = self.create_timer(0.1, self.read_and_publish)
+
+        # # Create timer which expires after every 0.1 second (10 Hz) and publishes sensor data
+        # self.timer = self.create_timer(0.1, self.read_and_publish)
+
+        # Ajastin lukemista varten (15 Hz = ~0.066s välein)
+        self.timer = self.create_timer(0.066, self.read_and_publish)
 
         return super().on_activate(state)
 
@@ -135,14 +179,22 @@ class ProximitySensorNode(LifecycleNode):
 
     def set_move_direction(self, direction: str):
         self.get_logger().info(f"Setting move direction to: {direction}")
-        if direction in {"Forward", "Backward"}:
+        if direction in {"stop", "forward", "backward"}:
             self.move_direction = direction
-            if direction == "Forward":
-                active_sensors = {'front_left', 'front_right'}
+            inactive_sensors = {}
+            if direction == "forward":
+                self.active_sensors = {'front_left', 'front_right'}
                 inactive_sensors = {'back_left', 'back_right'}
-            else:
+            elif direction == "backward":
                 inactive_sensors = {'front_left', 'front_right'}
-                active_sensors = {'back_left', 'back_right'}
+                self.active_sensors = {'back_left', 'back_right'}
+            elif direction == "stop":
+                for name in self.active_sensors:
+                    sensor = self.sensors.get(name)
+                    if sensor:
+                        sensor.stop_ranging()
+                self.active_sensors = {}
+                return
 
             # Stop ranging
             for name in inactive_sensors:
@@ -151,7 +203,7 @@ class ProximitySensorNode(LifecycleNode):
                     sensor.stop_ranging()
 
             # Start ranging
-            for name in active_sensors:
+            for name in self.active_sensors:
                 sensor = self.sensors.get(name)
                 if sensor:
                     sensor.start_ranging()
@@ -160,7 +212,7 @@ class ProximitySensorNode(LifecycleNode):
 
     def read_and_publish(self):
 
-        if self.move_direction == "Forward":
+        if self.move_direction == "forward":
             active_sensors = {'front_left', 'front_right'}
         else:
             active_sensors = {'back_left', 'back_right'}
@@ -168,9 +220,22 @@ class ProximitySensorNode(LifecycleNode):
         for name in active_sensors:
             sensor = self.sensors.get(name)
             if sensor:
-                msg = sensor.read_sensor()
-                if msg is not None:
-                    self.pub_range.publish(msg)
+                distances, status_info, status = sensor.read_sensor()
+                if status != "NO_NEW_DATA" and distances is not None and status_info is not None:
+                    msg = Float32MultiArray()
+                    num_zones = len(distances)
+                    ros_distances = [0.0] * num_zones
+                    valid_statuses = {5, 6} # STATUS_RANGE_VALID 5 or STATUS_RANGE_VALID_LARGE_PULSE 6
+                    for i in range(num_zones):
+                        # Suodatetaan vain luotettavat pisteet (status 5 tai 6)
+                        if status_info[i] in valid_statuses:
+                            ros_distances[i] = float(distances[i]) / 1000.0  # mm -> metrit (ROS2 standardi)
+                        else:
+                            ros_distances[i] = -1.0  # Merkki virheellisestä/tyhjästä pisteestä
+
+                    msg.data = ros_distances
+                    if msg is not None:
+                        self.pub_range.publish(msg)
 
 def main(args=None):
     rclpy.init(args=args)

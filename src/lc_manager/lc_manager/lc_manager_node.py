@@ -13,7 +13,7 @@ class LifecycleManagerNode(Node):
     def __init__(self, target_nodes=None):
         super().__init__('lifecycle_manager_node')
         # Add ordered list of nodes to be controlled
-        self.target_nodes = target_nodes or ['websocket_node','proximity_sensor_node','safety_control_node','driver_node','power_control_node','odometer_node','light_control_node']
+        self.target_nodes = target_nodes or ['websocket_node','proximity_sensor_node','safety_control_node','camera_node','driver_node','power_control_node','odometer_node','light_control_node']
         self.lifecycle_clients = {}
 
         # Created service client for each controlled node
@@ -25,7 +25,7 @@ class LifecycleManagerNode(Node):
         """Command node changes"""
         client = self.lifecycle_clients[node_name]
 
-        if not client.wait_for_service(timeout_sec=2.0):
+        if not client.wait_for_service(timeout_sec=15.0):
             self.get_logger().error(f'Service {client.srv_name} not found!')
             return False
 

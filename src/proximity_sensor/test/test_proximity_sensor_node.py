@@ -44,7 +44,7 @@ class TestProximitySensorNode(unittest.TestCase):
 
     def test_measure_distance_while_moving_backward(self):
 
-        self.node.set_move_direction("Backward")
+        self.node.set_move_direction("backward")
         # fake new distance measurement 0mm
         self.node.sensors['back_right'].sensor.current_distance = 201
         self.node.sensors['back_left'].sensor.current_distance = 200
@@ -75,18 +75,18 @@ class TestProximitySensorNode(unittest.TestCase):
         assert back_right_msg["distance"] == 201.0
 
     def test_move_direction_callback(self):
-        msg = String(data="Forward")
+        msg = String(data="forward")
         self.node.set_move_direction_callback(msg)
 
-        assert self.node.move_direction == "Forward"
+        assert self.node.move_direction == "forward"
 
     def test_move_direction_change(self):
-        self.node.move_direction = "Forward"
+        self.node.move_direction = "forward"
 
-        msg = String(data="Backward")
+        msg = String(data="fackward")
         self.node.set_move_direction_callback(msg)
 
-        assert self.node.move_direction == "Backward"
+        assert self.node.move_direction == "backward"
 
 if __name__ == '__main__':
     unittest.main()
