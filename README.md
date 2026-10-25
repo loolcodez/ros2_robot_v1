@@ -283,6 +283,7 @@ ros2 pkg create --build-type ament_python --node-name proximity_sensor proximity
 ros2 pkg create --build-type ament_python --node-name safety_control safety_control
 ros2 pkg create --build-type ament_python --node-name odometer odometer
 ros2 pkg create --build-type ament_python --node-name lc_manager lc_manager
+ros2 pkg create --build-type ament_python --node-name camera camera
 
 sudo usermod -aG gpio orangepi
 
@@ -337,3 +338,7 @@ sudo pip install smbus2 vl53l1x python-periphery --target=/usr/lib/python3/dist-
 source install/setup.bash
 ros2 launch driver driver.launch.py
 ros2 launch lc_manager lc_manager.py
+
+
+
+python3 install vl53l5cx-ctypes
