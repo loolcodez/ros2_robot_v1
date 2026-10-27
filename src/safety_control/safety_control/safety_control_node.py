@@ -8,6 +8,7 @@ class SafetyControlNode(LifecycleNode):
     def __init__(self):
         super().__init__('safety_control_node')
         self.is_activated = False
+        self.move_direction = None
 
         # Set speed correction value. Value range received from Joystick is -1 .. 1
         self.declare_parameter('max_linear', 60.0) # Speed. Must be in the range `[-100, 100]`
@@ -45,6 +46,7 @@ class SafetyControlNode(LifecycleNode):
         # Publisher for checked command
         self.cmd_vel_out_pub = self.create_lifecycle_publisher(Twist, 'cmd_vel_out', 10) # type: ignore reportAttributeAccessIssue
 
+        self.direction_pub = self.create_lifecycle_publisher(String, '/move/direction', 10) # type: ignore reportAttributeAccessIssue
 
         self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS
@@ -106,6 +108,13 @@ class SafetyControlNode(LifecycleNode):
                 f"SafetyNode: received cmd_vel_manual -> "
                 f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
             )
+
+            if twist_msg.linear.x > 0 and self.move_direction != "Forward":
+                self.move_direction = "Forward"
+                self.direction_pub.publish(self.move_direction)
+            elif twist_msg.linear.x < 0 and self.move_direction != "Backward":
+                self.move_direction = "Backward"
+                self.direction_pub.publish(self.move_direction)
 
             # Add speed correction --> from -1 .. 1 to -60 .. 60
             twist_msg.linear.x = twist_msg.linear.x * self.max_linear

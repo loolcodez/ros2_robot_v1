@@ -13,15 +13,15 @@ from collections import deque
 import rclpy
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from std_msgs.msg import String
-from proximity_sensor.hardware_interface import VL53L1XHardwareInterface
-
+#from proximity_sensor.hardware_interface import VL53L1XHardwareInterface
+from proximity_sensor.hardware_interface import VL53L5CXHardwareInterface
 class GPIO_pins(Enum):
     FRONT_LEFT = 256
     FRONT_RIGHT = 271
     BACK_LEFT = 258
     BACK_RIGHT = 272
 
-class VL53L1X():
+class VL53L5CX():
     def __init__(self, node: LifecycleNode, name: str, hardware_interface):
         self.sensor = hardware_interface
         self.name: Final[str] = name
@@ -85,8 +85,9 @@ class ProximitySensorNode(LifecycleNode):
     def __init__(self):
         super().__init__('proximity_sensor_node')
         self.is_activated = False
-        self.move_direction = "Forward"
-        self.sensors : Dict[str, VL53L1X]
+        self.move_direction = "Stop"
+        self.sensors : Dict[str, VL53L5CX]
+        self.active_sensors = {}
         self.move_direction_sub = None
         self.pub_range : LifecyclePublisher
         self.timer = None
@@ -95,20 +96,21 @@ class ProximitySensorNode(LifecycleNode):
         self.get_logger().info("IN on_configure state")
 
         # Create sensors
-        # hw_sensor_front_right = VL53L1XHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value, 0x32)
-        # hw_sensor_front_left = VL53L1XHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value, 0x31)
-        # hw_sensor_back_right = VL53L1XHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value, 0x30)
-        # hw_sensor_back_left = VL53L1XHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value, 0x29)
-        hw_sensor_front_right = VL53L1XHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value, 44)
-        hw_sensor_front_left = VL53L1XHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value, 43)
-        hw_sensor_back_right = VL53L1XHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value, 41)
-        hw_sensor_back_left = VL53L1XHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value, 41)
+        hw_sensor_front_right = VL53L5CXHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value)
+        hw_sensor_front_left = VL53L5CXHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value)
+        hw_sensor_back_right = VL53L5CXHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value)
+        hw_sensor_back_left = VL53L5CXHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value)
+
+        hw_sensor_front_right.initialize_sensor(0x30)
+        hw_sensor_front_left.initialize_sensor(0x31)
+        hw_sensor_back_right.initialize_sensor(0x32)
+        hw_sensor_back_left.initialize_sensor(0x29)
 
         self.sensors = {
-            'back_left': VL53L1X(self, 'back_left', hw_sensor_back_left),
-            'back_right': VL53L1X(self, 'back_right', hw_sensor_back_right),
-            'front_left': VL53L1X(self, 'front_left', hw_sensor_front_left),
-            'front_right': VL53L1X(self, 'front_right', hw_sensor_front_right)
+            'back_left': VL53L5CX(self, 'back_left', hw_sensor_back_left),
+            'back_right': VL53L5CX(self, 'back_right', hw_sensor_back_right),
+            'front_left': VL53L5CX(self, 'front_left', hw_sensor_front_left),
+            'front_right': VL53L5CX(self, 'front_right', hw_sensor_front_right)
         }
 #        self.set_move_direction("Forward")
         self.set_move_direction("Backward")
@@ -139,14 +141,22 @@ class ProximitySensorNode(LifecycleNode):
 
     def set_move_direction(self, direction: str):
         self.get_logger().info(f"Setting move direction to: {direction}")
-        if direction in {"Forward", "Backward"}:
+        if direction in {"Stop, Forward", "Backward"}:
             self.move_direction = direction
+            inactive_sensors = {}
             if direction == "Forward":
-                active_sensors = {'front_left', 'front_right'}
+                self.active_sensors = {'front_left', 'front_right'}
                 inactive_sensors = {'back_left', 'back_right'}
-            else:
+            elif direction == "Backward":
                 inactive_sensors = {'front_left', 'front_right'}
-                active_sensors = {'back_left', 'back_right'}
+                self.active_sensors = {'back_left', 'back_right'}
+            elif direction == "Stop":
+                for name in self.active_sensors:
+                    sensor = self.sensors.get(name)
+                    if sensor:
+                        sensor.stop_ranging()
+                self.active_sensors = {}
+                return
 
             # Stop ranging
             for name in inactive_sensors:
@@ -155,7 +165,7 @@ class ProximitySensorNode(LifecycleNode):
                     sensor.stop_ranging()
 
             # Start ranging
-            for name in active_sensors:
+            for name in self.active_sensors:
                 sensor = self.sensors.get(name)
                 if sensor:
                     sensor.start_ranging()
