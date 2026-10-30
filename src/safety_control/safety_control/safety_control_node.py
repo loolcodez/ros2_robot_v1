@@ -109,12 +109,23 @@ class SafetyControlNode(LifecycleNode):
                 f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
             )
 
-            if twist_msg.linear.x > 0 and self.move_direction != "Forward":
-                self.move_direction = "Forward"
-                self.direction_pub.publish(self.move_direction)
-            elif twist_msg.linear.x < 0 and self.move_direction != "Backward":
-                self.move_direction = "Backward"
-                self.direction_pub.publish(self.move_direction)
+            # if twist_msg.linear.x > 0 and self.move_direction != "forward":
+            #     msg = String()
+            #     self.move_direction = "forward"
+            #     msg.data = self.move_direction
+            #     self.direction_pub.publish(msg)
+
+            # if twist_msg.linear.x < 0 and self.move_direction != "backward":
+            #     msg = String()
+            #     self.move_direction = "backward"
+            #     msg.data = self.move_direction
+            #     self.direction_pub.publish(msg)
+
+            # if twist_msg.linear.x == 0 and self.move_direction != "stop":
+            #     msg = String()
+            #     self.move_direction = "stop"
+            #     msg.data = self.move_direction
+            #     self.direction_pub.publish(msg)
 
             # Add speed correction --> from -1 .. 1 to -60 .. 60
             twist_msg.linear.x = twist_msg.linear.x * self.max_linear

@@ -28,7 +28,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'camera = camera.camera:main'
+            'camera_node = camera.camera_node:main'
         ],
     },
 )

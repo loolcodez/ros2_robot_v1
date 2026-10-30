@@ -100,9 +100,11 @@ class LightsControlNode(LifecycleNode):
         self.is_activated = True
 
         # Flash lights for ready to go sign
-        self.set_emergency_lights_on()
+        self.set_front_lights(LightState.ON)
+        self.set_back_lights(LightState.ON)
         time.sleep(0.5) # Blink rate 0.5s ON and OFF
-        self.set_emergency_lights_off()
+#        self.set_front_lights(LightState.OFF)
+#        self.set_back_lights(LightState.OFF)
         return super().on_activate(state)
 
     def on_deactivate(self, state):

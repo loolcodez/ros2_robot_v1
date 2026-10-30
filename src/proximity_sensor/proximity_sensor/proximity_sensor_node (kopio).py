@@ -152,8 +152,8 @@ class VL53L1XNode(Node):
             #'front_left': VL53L1X(self, 'front_left', GPIO_pins.FRONT_RIGHT.value, 0x32)
         }
 
-#        self.set_move_direction("Forward")
-        self.set_move_direction("Backward")
+#        self.set_move_direction("forward")
+#        self.set_move_direction("backward")
 
         self.move_direction_sub = self.create_subscription(String, '/move/direction', self.set_move_direction_callback, 10)
         self.pub_range = self.create_publisher(String, 'range', 10)
@@ -166,9 +166,9 @@ class VL53L1XNode(Node):
 
     def set_move_direction(self, direction: str):
         self.get_logger().error(f"VL53L1XNode: Setting move direction to: {direction}")
-        if direction in {"Forward", "Backward"}:
+        if direction in {"forward", "backward"}:
             self.move_direction = direction
-            if direction == "Forward":
+            if direction == "forward":
                 active_sensors = {'front_left', 'front_right'}
                 inactive_sensors = {'back_left', 'back_right'}
             else:
@@ -189,7 +189,7 @@ class VL53L1XNode(Node):
 
     def read_and_publish(self):
 
-        if self.move_direction == "Forward":
+        if self.move_direction == "forward":
             active_sensors = {'front_left', 'front_right'}
         else:
             active_sensors = {'back_left', 'back_right'}

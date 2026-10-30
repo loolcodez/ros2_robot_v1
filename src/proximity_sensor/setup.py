@@ -17,7 +17,7 @@ setup(
     ],
     install_requires=['setuptools',
                       'smbus2',
-                      'vl53l1x',
+                      'vl53l5cx-ctypes',
                       'python-periphery'],
     zip_safe=True,
     maintainer='orangepi',

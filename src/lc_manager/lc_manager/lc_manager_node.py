@@ -25,7 +25,7 @@ class LifecycleManagerNode(Node):
         """Command node changes"""
         client = self.lifecycle_clients[node_name]
 
-        if not client.wait_for_service(timeout_sec=2.0):
+        if not client.wait_for_service(timeout_sec=15.0):
             self.get_logger().error(f'Service {client.srv_name} not found!')
             return False
 
