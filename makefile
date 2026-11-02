@@ -6,6 +6,7 @@ build: clean
 
 run:
 	bash -lc "source /opt/ros/$(ROS_DISTRO)/setup.bash && source install/setup.bash && ros2 launch robot_bringup robot.launch.py"
+#	bash -lc "source /opt/ros/$(ROS_DISTRO)/setup.bash && source install/setup.bash && ros2 launch robot_bringup rsp.launch.py"
 
 clean:
 	rm -rf build install log

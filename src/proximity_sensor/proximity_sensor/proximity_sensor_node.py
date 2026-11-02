@@ -10,7 +10,6 @@ import math
 from enum import Enum
 from typing import Final, Dict
 import rclpy
-from rclpy.node import Node
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from std_msgs.msg import String, Header
 from sensor_msgs.msg import PointCloud2, PointField
@@ -26,6 +25,7 @@ class GPIO_pins(Enum):
 
 class VL53L5CX():
     def __init__(self, node: LifecycleNode, name: str, hardware_interface):
+        self.node = node
         self.sensor = hardware_interface
         self.name: Final[str] = name
         self.logger = node.get_logger()
@@ -45,7 +45,9 @@ class VL53L5CX():
         # /tof/front_right/points sensor_msgs/msg/PointCloud2 Proximity → Nav2
         # /tof/back_left/points   sensor_msgs/msg/PointCloud2 Proximity → Nav2
         # /tof/back_right/points  sensor_msgs/msg/PointCloud2 Proximity → Nav2
-        self.point_cloud_pub = node.create_lifecycle_publisher(PointCloud2, f'tof/{self.name}/', 10) # type: ignore reportAttributeAccessIssue
+        self.point_cloud_pub = node.create_lifecycle_publisher(PointCloud2, f'tof/{self.name}', 10) # type: ignore reportAttributeAccessIssue
+
+        self.logger.info(f"VL53L5CX {self.name} created")
 
     def start_ranging(self):
         self.logger.info(f"starting ranging on sensor {self.name}")
@@ -100,24 +102,24 @@ class VL53L5CX():
 
                 points.append([x, y, z])
 
-            # Create header for PointCloud2 message
-            header = Header()
-            header.stamp = Node.get_clock().now().to_msg()
-            header.frame_id = (
-                'tof_{self.name}_link'  # URDF/TF tree name
-            )
+        # Create header for PointCloud2 message
+        header = Header()
+        header.stamp = self.node.get_clock().now().to_msg()
+        header.frame_id = (
+            f'tof_{self.name}_link'  # URDF/TF tree name
+        )
 
-            # Define PointCloud2 message fields (X, Y, Z float32)
-            fields = [
-                PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
-                PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
-                PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
-            ]
+        # Define PointCloud2 message fields (X, Y, Z float32)
+        fields = [
+            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
+        ]
 
-            # Create and publish the message
-            msg = point_cloud2.create_cloud(header, fields, points)
-            if msg is not None:
-                self.point_cloud_pub.publish(msg)
+        # Create and publish the message
+        msg = point_cloud2.create_cloud(header, fields, points)
+        if msg is not None:
+            self.point_cloud_pub.publish(msg)
 
     def read_sensor(self):
         try:
