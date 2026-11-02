@@ -1,0 +1,113 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org" name="oma_robotti">
+
+  <!-- Maapiste robotin alla (akselien välissä maassa) -->
+  <link name="base_footprint"/>
+
+  <!-- Robotin varsinainen runko -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <!-- X (depth), Y (width), and Z (height)  -->
+        <!-- Esimerkki: renkaista Pituus=0.22m, Leveys=0.23m, Korkeus=0.07m -->
+        <!-- Esimerkki: laatikkorunko Pituus=0.20m, Leveys=0.15m, Korkeus=0.07m -->
+        <box size="0.20 0.15 0.07"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0 0 1 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <!-- Nostatetaan runkoa 7cm maasta -->
+    <origin xyz="0 0 0.07" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ================= SENSORILINKIT ================= -->
+
+  <!-- Front left TOF-SENSOR -->
+  <link name="tof_front_left_link">
+    <visual>
+      <geometry>
+        <!-- Small box sensor -->
+        <box size="0.02 0.04 0.02"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- Front right TOF-SENSOR -->
+  <link name="tof_front_right_link">
+    <visual>
+      <geometry>
+        <!-- Small box sensor -->
+        <box size="0.02 0.04 0.02"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- Back left TOF-SENSOR -->
+  <link name="tof_back_left_link">
+    <visual>
+      <geometry>
+        <!-- Small box sensor -->
+        <box size="0.02 0.04 0.02"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- back right TOF-SENSOR -->
+  <link name="tof_back_right_link">
+    <visual>
+      <geometry>
+        <!-- Small box sensor -->
+        <box size="0.02 0.04 0.02"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+  
+  <!-- ================= LIITOKSET (JOINTS) ================= -->
+  
+  <!-- Front Left (Eteen, Vasemmalle) -->
+  <joint name="tof_front_left_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="tof_front_left_link"/>
+    <origin xyz="0.09 0.08 0.08" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Front Right (Eteen, Oikealle) -->
+  <joint name="tof_front_right_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="tof_front_right_link"/>
+    <origin xyz="0.09 -0.08 0.08" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Back Left (Taakse, Vasemmalle + Käännetty 180 astetta) -->
+  <joint name="tof_back_left_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="tof_back_left_link"/>
+    <origin xyz="-0.09 0.08 0.08" rpy="0 0 3.14159"/>
+  </joint>
+
+  <!-- Back Right (Taakse, Oikealle + Käännetty 180 astetta) -->
+  <joint name="tof_back_right_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="tof_back_right_link"/>
+    <origin xyz="-0.09 -0.08 0.08" rpy="0 0 3.14159"/>
+  </joint>
+
+</robot>
