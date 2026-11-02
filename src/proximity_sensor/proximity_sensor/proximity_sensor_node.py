@@ -6,13 +6,15 @@
 # XSHUT back-left 35/PI2/258 Gray wire
 # XSHUT back-right 37/PI16/272 Gray wire
 
-import json
+import math
 from enum import Enum
 from typing import Final, Dict
-from collections import deque
 import rclpy
+from rclpy.node import Node
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
-from std_msgs.msg import String, Float32MultiArray
+from std_msgs.msg import String, Header
+from sensor_msgs.msg import PointCloud2, PointField
+from sensor_msgs_py import point_cloud2
 from smbus2 import SMBus
 from proximity_sensor.hardware_interface import VL53L5CXHardwareInterface
 
@@ -32,8 +34,18 @@ class VL53L5CX():
         self.min_dist = 1
         self.max_dist = 4000
 
-        # Ring buffer for 10 last measurements
-        self.history = deque(maxlen=10)
+        # Sensor's installation parameters and picture angle (FoV)
+        self.fov_deg = 45.0
+        self.fov_rad = math.radians(self.fov_deg)
+
+        # Calculate angle per picture in (8x8 matrix with 7 middle spaces)
+        self.angle_step = self.fov_rad / 7.0
+
+        # /tof/front_left/points  sensor_msgs/msg/PointCloud2 Proximity → Nav2
+        # /tof/front_right/points sensor_msgs/msg/PointCloud2 Proximity → Nav2
+        # /tof/back_left/points   sensor_msgs/msg/PointCloud2 Proximity → Nav2
+        # /tof/back_right/points  sensor_msgs/msg/PointCloud2 Proximity → Nav2
+        self.point_cloud_pub = node.create_lifecycle_publisher(PointCloud2, f'tof/{self.name}/', 10) # type: ignore reportAttributeAccessIssue
 
     def start_ranging(self):
         self.logger.info(f"starting ranging on sensor {self.name}")
@@ -49,6 +61,64 @@ class VL53L5CX():
         except Exception as e:
             self.logger.error(f"stopping ranging on sensor {self.name} failed: {e}")
 
+    def read_and_publish(self):
+
+        # Fetch sensor data
+        distances, status_info, status = self.read_sensor()
+        if status != 'OK' or distances is None or status_info is None:
+            return
+
+        points = []
+        rows, cols = 8, 8
+
+        # Loop through 8x8 matrix
+        for r in range(rows):
+            for c in range(cols):
+                idx = r * cols + c
+
+                # Filtering for Nav2. Accept only valid measurements status codes (5 ja 9)
+                # If status is something else skip the measurement value
+                if status_info[idx] not in {5, 9}:
+                    continue
+
+                # Convert distance values to millimeters
+                d_meters = distances[idx] / 1000.0
+
+                # Skip measurement values out of valid range
+                if d_meters <= 0.02 or d_meters > 4.0:
+                    continue
+
+                # Calculate place of the point related to center point of the sensor
+                # r-3.5 and c-3.5 concentrates points in between -3.5 ... +3.5
+                horizontal_angle = (3.5 - c) * self.angle_step
+                vertical_angle = (3.5 - r) * self.angle_step
+
+                # Project values to 3D space (ROS standard: X=forward, Y=left, Z=right)
+                x = d_meters * math.cos(vertical_angle) * math.cos(horizontal_angle)
+                y = d_meters * math.cos(vertical_angle) * math.sin(horizontal_angle)
+                z = d_meters * math.sin(vertical_angle)
+
+                points.append([x, y, z])
+
+            # Create header for PointCloud2 message
+            header = Header()
+            header.stamp = Node.get_clock().now().to_msg()
+            header.frame_id = (
+                'tof_{self.name}_link'  # URDF/TF tree name
+            )
+
+            # Define PointCloud2 message fields (X, Y, Z float32)
+            fields = [
+                PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
+                PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
+                PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
+            ]
+
+            # Create and publish the message
+            msg = point_cloud2.create_cloud(header, fields, points)
+            if msg is not None:
+                self.point_cloud_pub.publish(msg)
+
     def read_sensor(self):
         try:
             # Read distance in millimeters
@@ -60,7 +130,6 @@ class VL53L5CX():
                 self.logger.error(f"Sensor {self.name} HW error: {status}")
                 return None, None, status
 
-            # Nyt tulostus toimii kauniisti numerolistoina!
             self.logger.info(f"Sensor: {self.name}, distances: {distances}",
                              throttle_duration_sec=1.0) # Print in log once per second
             self.logger.info(f"Sensor: {self.name}, statuses: {status_info}",
@@ -69,35 +138,6 @@ class VL53L5CX():
         except Exception as e:
             self.logger.error(f"Error in reading sensor: {self.name} {e}")
             return None, None, f"ERROR: {e}"
-
-    def read_sensor_old(self):
-        try:
-            # Read distance in millimeters
-            distance = self.sensor.get_distance()
-            if isinstance(distance, str):
-                self.logger.error(f"Sensor {self.name} HW error: {distance}")
-                return None
-
-            # Filter invalid values
-            if distance <= self.min_dist or distance >= self.max_dist:
-                self.logger.warn(f"Invalid measurement detected: {distance} mm. Measurement dropped")
-                return None
-
-            # Add value in ring buffer
-            self.history.append(distance)
-
-            # Calculate moving average of 10 last measurements. # Round to zero decimal
-            moving_average = round(sum(self.history) / len(self.history),0)
-
-            msg = String()
-            distance = {"sensor": self.name, "distance": moving_average}
-            msg.data = json.dumps(distance)
-            self.logger.info(f"L: {distance} mm")
-            return msg
-
-        except Exception as e:
-            self.logger.error(f"Error in reading sensor: {self.name} {e}")
-            return None
 
     def cleanup(self):
         self.sensor.cleanup()
@@ -137,7 +177,7 @@ class ProximitySensorNode(LifecycleNode):
             status = hw_sensor_back_left.initialize_sensor(smbus0, 0x29)
             self.get_logger().info(f"hw_sensor_back_left: {status}")
         except Exception as e:
-            return f"Error in initilizing sensor: {e}"
+            return f"Error in initializing sensor: {e}"
 
         self.sensors = {
             'front_left': VL53L5CX(self, 'front_left', hw_sensor_front_left),
@@ -149,8 +189,6 @@ class ProximitySensorNode(LifecycleNode):
         self.set_move_direction("forward")
 
         self.move_direction_sub = self.create_subscription(String, '/move/direction', self.set_move_direction_callback, 10)
-#        self.pub_range = self.create_lifecycle_publisher(String, 'range', 10) # type: ignore reportAttributeAccessIssue
-        self.pub_range = self.create_lifecycle_publisher(Float32MultiArray, 'tof/range', 10) # type: ignore reportAttributeAccessIssue
 
         self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS
@@ -159,12 +197,8 @@ class ProximitySensorNode(LifecycleNode):
         self.get_logger().info("IN on_active state")
         self.is_activated = True
 
-        # # Create timer which expires after every 0.1 second (10 Hz) and publishes sensor data
-        # self.timer = self.create_timer(0.1, self.read_and_publish)
-
-        # Ajastin lukemista varten (15 Hz = ~0.066s välein)
+        # # Create timer which expires after every ~0.066 second (15 Hz) and publishes sensor data
         self.timer = self.create_timer(0.066, self.read_and_publish)
-
         return super().on_activate(state)
 
     def on_deactivate(self, state):
@@ -220,22 +254,7 @@ class ProximitySensorNode(LifecycleNode):
         for name in active_sensors:
             sensor = self.sensors.get(name)
             if sensor:
-                distances, status_info, status = sensor.read_sensor()
-                if status != "NO_NEW_DATA" and distances is not None and status_info is not None:
-                    msg = Float32MultiArray()
-                    num_zones = len(distances)
-                    ros_distances = [0.0] * num_zones
-                    valid_statuses = {5, 6} # STATUS_RANGE_VALID 5 or STATUS_RANGE_VALID_LARGE_PULSE 6
-                    for i in range(num_zones):
-                        # Suodatetaan vain luotettavat pisteet (status 5 tai 6)
-                        if status_info[i] in valid_statuses:
-                            ros_distances[i] = float(distances[i]) / 1000.0  # mm -> metrit (ROS2 standardi)
-                        else:
-                            ros_distances[i] = -1.0  # Merkki virheellisestä/tyhjästä pisteestä
-
-                    msg.data = ros_distances
-                    if msg is not None:
-                        self.pub_range.publish(msg)
+                sensor.read_and_publish()
 
 def main(args=None):
     rclpy.init(args=args)
