@@ -1,16 +1,16 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org" name="oma_robotti">
 
-  <!-- Maapiste robotin alla (akselien välissä maassa) -->
+  <!-- Ground point below robot between axis -->
   <link name="base_footprint"/>
 
-  <!-- Robotin varsinainen runko -->
+  <!-- Robot base-->
   <link name="base_link">
     <visual>
       <geometry>
         <!-- X (depth), Y (width), and Z (height)  -->
-        <!-- Esimerkki: renkaista Pituus=0.22m, Leveys=0.23m, Korkeus=0.07m -->
-        <!-- Esimerkki: laatikkorunko Pituus=0.20m, Leveys=0.15m, Korkeus=0.07m -->
+        <!-- Robot total size measured form wheels depth=0.22m, width=0.23m, high=0.07m -->
+        <!-- Robot base plate depth=0.20m, width=0.15m, hight=0.07m -->
         <box size="0.20 0.15 0.07"/>
       </geometry>
       <material name="blue">
@@ -22,11 +22,11 @@
   <joint name="base_joint" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link"/>
-    <!-- Nostatetaan runkoa 7cm maasta -->
+    <!-- Lift up body 7cm from earth -->
     <origin xyz="0 0 0.07" rpy="0 0 0"/>
   </joint>
 
-  <!-- ================= SENSORILINKIT ================= -->
+  <!-- ================= SENSOR LINKS ================= -->
 
   <!-- Front left TOF-SENSOR -->
   <link name="tof_front_left_link">
@@ -80,30 +80,30 @@
     </visual>
   </link>
   
-  <!-- ================= LIITOKSET (JOINTS) ================= -->
+  <!-- ================= JOINTS ================= -->
   
-  <!-- Front Left (Eteen, Vasemmalle) -->
+  <!-- Front Left -->
   <joint name="tof_front_left_joint" type="fixed">
     <parent link="base_link"/>
     <child link="tof_front_left_link"/>
     <origin xyz="0.09 0.08 0.08" rpy="0 0 0"/>
   </joint>
 
-  <!-- Front Right (Eteen, Oikealle) -->
+  <!-- Front Right -->
   <joint name="tof_front_right_joint" type="fixed">
     <parent link="base_link"/>
     <child link="tof_front_right_link"/>
     <origin xyz="0.09 -0.08 0.08" rpy="0 0 0"/>
   </joint>
 
-  <!-- Back Left (Taakse, Vasemmalle + Käännetty 180 astetta) -->
+  <!-- Back Left (turned 180 degrees) -->
   <joint name="tof_back_left_joint" type="fixed">
     <parent link="base_link"/>
     <child link="tof_back_left_link"/>
     <origin xyz="-0.09 0.08 0.08" rpy="0 0 3.14159"/>
   </joint>
 
-  <!-- Back Right (Taakse, Oikealle + Käännetty 180 astetta) -->
+  <!-- Back Right (turned 180 degrees) -->
   <joint name="tof_back_right_joint" type="fixed">
     <parent link="base_link"/>
     <child link="tof_back_right_link"/>
