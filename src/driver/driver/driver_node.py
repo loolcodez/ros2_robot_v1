@@ -23,6 +23,7 @@ class DriverNode(LifecycleNode):
         self.counts_per_revolution = 1320
         self.wheel_diameter = 0.065
         self.encoding_timer_delay = 0.05 # 50ms
+        self.battery_pub_delay = 10 # 10s
 
         self.port = self.get_parameter('port').get_parameter_value().string_value
         self.baudrate = self.get_parameter('baudrate').get_parameter_value().integer_value
@@ -70,7 +71,6 @@ class DriverNode(LifecycleNode):
 
     def on_configure(self, state):
         self.get_logger().info("IN on_configure state")
-        #self.read_configuration()
         self.create_ros2_communication()
 
         if not self.initialize_driver():
@@ -87,29 +87,33 @@ class DriverNode(LifecycleNode):
 
     def on_activate(self, state):
         self.get_logger().info("IN on_active state")
+        self.shutdown = False
 
         # Read motor encoders
         self.sensor_loop_timer = self.create_timer(self.encoding_timer_delay, self.handle_sensors_and_control)
 
         # Set timer which publishes battery status periodically
-        period = 10.0 # 10s
-        self.battery_publish_timer = self.create_timer(period, self.publish_battery)
-        self.shutdown = False
+        self.battery_publish_timer = self.create_timer(self.battery_pub_delay, self.publish_battery)
         return super().on_activate(state)
 
     def on_deactivate(self, state):
         self.get_logger().info("IN on_deactive state")
         self.shutdown = True
+        self.stop_motors()
         return super().on_deactivate(state)
+
+    def on_shutdown(self, state):
+        self.get_logger().info("IN on_shutdown state")
+        self.destroy_timer(self.sensor_loop_timer) # type: ignore
+        self.destroy_timer(self.battery_publish_timer) # type: ignore
+        self.destroy_lifecycle_publisher(self.battery_voltage_pub)
+        self.destroy_lifecycle_publisher(self.encoder_pub)
+        self.destroy_lifecycle_publisher(self.imu_pub)
 
     def create_ros2_communication(self):
         # Call this on_activate function if you want to minimize power consumption on idle.
         # Remember also destroy subscribers in on_deactivate in that case.
 
-        # message = Twist()
-        # float(message.linear.x)
-        # float(message.angular.z)
-#        self.manual_control_sub = self.create_subscription(message, 'cmd_vel_out', self.handle_speed_control_command, 10)
         self.drive_control_sub = self.create_subscription(Twist, 'cmd_vel_out', self.handle_speed_control_command, 10)
         self.power_alert_sub = self.create_subscription(String, '/power/alert', self.beep, 10)
         self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
@@ -128,8 +132,8 @@ class DriverNode(LifecycleNode):
         try:
             # Example import style. Change this if your local library differs.
             from Rosmaster_Lib import Rosmaster  # type: ignore
-        except Exception as exc:
-            self.get_logger().error(f'Failed to import Rosmaster library: {exc}')
+        except Exception as e:
+            self.get_logger().error(f'Failed to import Rosmaster library: {e}')
             self.get_logger().error('Install or copy the vendor Rosmaster library so Python can import it.')
             return False
 
@@ -147,8 +151,8 @@ class DriverNode(LifecycleNode):
             self.get_logger().info(f'Driver card initialized on port {self.port}')
             return True
 
-        except Exception as exc:
-            self.get_logger().error(f'Driver card initialization error: {exc}')
+        except Exception as e:
+            self.get_logger().error(f'Driver card initialization error: {e}')
             return False
 
     def beep(self, msg):
@@ -159,10 +163,10 @@ class DriverNode(LifecycleNode):
             beep_count = 5
 
         # Control the buzzer
-        # `on_time=0` turns it off
-        # `on_time=1` keeps it on continuously
-        # `on_time>=10` turns it on for the given number of milliseconds
-        # `on_time` must be a multiple of 10 for timed operation
+        # on_time=0 turns it off
+        # on_time=1 keeps it on continuously
+        # on_time>=10 turns it on for the given number of milliseconds
+        # on_time must be a multiple of 10 for timed operation
         for _ in range(beep_count):
             on_time = 100 # 100ms
             self.driver.set_beep(on_time) # type: ignore
@@ -187,12 +191,12 @@ class DriverNode(LifecycleNode):
             if self.invert[i]:
                 speeds[i] = -speeds[i]
 
-        # Limit values to maximum values. # Each `speed_X` must be in the range `[-100, 100]`
+        # Limit values to maximum values. # Each `speed_X` must be in the range `[-max, max]`
         self.target_motor_speeds = [self.clamp_motor_value(v) for v in speeds]
 
     def handle_sensors_and_control(self):
         """This function executes every 50 milliseconds."""
-        if self.driver is None or self.shutdown:
+        if self.shutdown:
             if self.shutdown:
                 self.get_logger().info("shutdown")
             return
@@ -249,8 +253,8 @@ class DriverNode(LifecycleNode):
 
             self.previous_encoders = current_encoders
 
-        except Exception as exc:
-            self.get_logger().warning(f'Error in sensor/control loop: {exc}')
+        except Exception as e:
+            self.get_logger().warning(f'Error in sensor/control loop: {e}')
 
     def calculate_wheel_speeds(self, delta_encoders, delta_time):
         # Calculate current speed for every wheel in the list
@@ -270,8 +274,8 @@ class DriverNode(LifecycleNode):
                 speeds[2],
                 speeds[3],
             )
-        except Exception as exc:
-            self.get_logger().error(f'Failed to send motor command: {exc}')
+        except Exception as e:
+            self.get_logger().error(f'Failed to send motor command: {e}')
 
     @staticmethod
     def clamp_motor_value(value: int) -> int:
@@ -284,8 +288,8 @@ class DriverNode(LifecycleNode):
 
         try:
             # Read raw IMU sensor data
-            accel = self.driver.get_accelerometer_data()  # type: ignore # Returns (a_x, a_y, a_z)
-            gyro = self.driver.get_gyroscope_data()  # type: ignore      # Returns (g_x, g_y, g_z)
+            accel = self.driver.get_accelerometer_data() # type: ignore # Returns (a_x, a_y, a_z)
+            gyro = self.driver.get_gyroscope_data() # type: ignore      # Returns (g_x, g_y, g_z)
 
             # Conversion to ROS2 unit (SI-unit)
             deg_to_rad = math.pi / 180.0
@@ -293,7 +297,7 @@ class DriverNode(LifecycleNode):
             # Create standard ROS2 IMU message
             imu_msg = Imu()
             imu_msg.header.stamp = self.get_clock().now().to_msg()
-            imu_msg.header.frame_id = 'imu_link'  # Coordination, where sensor exists
+            imu_msg.header.frame_id = 'imu_link' # Coordination, where sensor exists
 
             # Linear Acceleration
             imu_msg.linear_acceleration.x = float(accel[0])
@@ -303,7 +307,7 @@ class DriverNode(LifecycleNode):
             # Angular Velocity
             imu_msg.angular_velocity.x = float(gyro[0]) * deg_to_rad
             imu_msg.angular_velocity.y = float(gyro[1]) * deg_to_rad
-            imu_msg.angular_velocity.z = float(gyro[2]) * deg_to_rad  # This axis measures turning
+            imu_msg.angular_velocity.z = float(gyro[2]) * deg_to_rad # This axis measures turning
 
             # Covariance estimate
             # As we do not make exact calibration yet let's set the ROS2 way. Main diagonal get's small noise value and the rest zero value.
@@ -324,32 +328,31 @@ class DriverNode(LifecycleNode):
 
             self.imu_pub.publish(imu_msg)
 
-        except Exception as exc:
-            self.get_logger().warning(f'Reading and publishing IMU data failed: {exc}')
+        except Exception as e:
+            self.get_logger().warning(f'Reading and publishing IMU data failed: {e}')
 
     def shutdown_callback(self, string_msg) -> None:
         self.get_logger().info(f"Shutdown trigger received: {string_msg.data}")
-        self.stop_motors_and_destroy()
+        self.stop_motors()
 
-    def stop_motors_and_destroy(self) -> None:
+    def stop_motors(self) -> None:
         try:
             self.get_logger().info('Stopping motors before shutdown')
             self.set_motor_speeds([0, 0, 0, 0])
         except Exception as e:
             self.get_logger().error(f"Failed to stop motors: {e}")
-        super().destroy_node()
 
     def publish_battery(self) -> None:
         if self.driver is None:
             return
 
         try:
-            voltage = float(self.driver.get_battery_voltage())# type: ignore
+            voltage = float(self.driver.get_battery_voltage()) # type: ignore
             msg = Float32()
             msg.data = voltage
             self.battery_voltage_pub.publish(msg)
-        except Exception as exc:
-            self.get_logger().warning(f'Failed to read battery voltage: {exc}')
+        except Exception as e:
+            self.get_logger().warning(f'Failed to read battery voltage: {e}')
 
 def main(args=None):
     rclpy.init(args=args)
@@ -362,7 +365,8 @@ def main(args=None):
     finally:
         if node is not None:
             node.get_logger().info("Startup failure - shutting down")
-            node.stop_motors_and_destroy()
+            node.stop_motors()
+            node.destroy_node()
         rclpy.shutdown()
 
 if __name__ == '__main__':
