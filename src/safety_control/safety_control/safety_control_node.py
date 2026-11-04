@@ -88,7 +88,7 @@ class SafetyControlNode(LifecycleNode):
 
         # Get control data from JSON message
         json_message = json.loads(msg.data)
-        self.get_logger().info(f"SafetyNode: Received message: {json_message}")
+        # self.get_logger().info(f"SafetyNode: Received message: {json_message}")
         sender = json_message.get('sender')
         if sender == 'Joystick':
             # Create standard ROS 2 move message
@@ -104,10 +104,10 @@ class SafetyControlNode(LifecycleNode):
             #self.previous_twist_msg.linear.x = twist_msg.linear.x
             #self.previous_twist_msg.angular.z = twist_msg.angular.z
 
-            self.get_logger().info(
-                f"SafetyNode: received cmd_vel_manual -> "
-                f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
-            )
+            # self.get_logger().info(
+            #     f"SafetyNode: received cmd_vel_manual -> "
+            #     f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}"
+            # )
 
             # if twist_msg.linear.x > 0 and self.move_direction != "forward":
             #     msg = String()
@@ -155,11 +155,11 @@ class SafetyControlNode(LifecycleNode):
                     f"SafetyNode: Moving stopped! Road blocked: {self.current_distance_mm} mm. Drive command suspended",
                     throttle_duration_sec=1.0 # Print in log once per second
                 )
-        self.get_logger().info(
-            f"SafetyNode: sending cmd_vel_out -> "
-            f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}",
-            throttle_duration_sec=1.0 # Print in log once per second
-        )
+        # self.get_logger().info(
+        #     f"SafetyNode: sending cmd_vel_out -> "
+        #     f"linear.x: {twist_msg.linear.x:.2f}, angular.z: {twist_msg.angular.z:.2f}",
+        #     throttle_duration_sec=1.0 # Print in log once per second
+        # )
 
         # Publish filtered command to driver node
         self.cmd_vel_out_pub.publish(twist_msg)
