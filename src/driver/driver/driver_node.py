@@ -174,7 +174,7 @@ class DriverNode(LifecycleNode):
             time.sleep(1)
 
     def handle_speed_control_command(self, msg):
-        self.get_logger().info(f"linear.x={msg.linear.x:.2f}, angular.z={msg.angular.z:.2f}")
+        # self.get_logger().info(f"linear.x={msg.linear.x:.2f}, angular.z={msg.angular.z:.2f}")
         if self.shutdown is True:
             return
 

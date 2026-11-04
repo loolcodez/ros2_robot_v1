@@ -314,6 +314,7 @@ ros2 launch robot_bringup robot.launch.py
 source install/setup.bash
 ros2 launch light_control light_control.launch.py
 
+# Run only proximity sensor
 source install/setup.bash
 ros2 launch proximity_sensor proximity_sensor.launch.py
 
@@ -321,15 +322,86 @@ ros2 launch proximity_sensor proximity_sensor.launch.py
 source install/setup.bash
 ros2 launch odometer odometer.launch.py
 
-# Run only proximity sensor test
-
 # Run only driver
 source install/setup.bash
 ros2 launch driver driver.launch.py
 
-# Run only proximity sensor
 
-sudo i2cdetect -y 0
+# I2C bus settings. OrangePi zero 2w have pins for three I2C busses 
+sudo ls -la/boot
+
+
+# Add this line to enable tree I2C busses
+overlays=pi-i2c0 pi-i2c1 pi-i2c2
+
+sudo nano /boot/orangepiEnv.txt
+save
+verify
+sudo cat /boot/orangepiEnv.txt
+boot
+
+# VL53L5CX sensor default address is 0x29. Attach sensor wires in SCL/SDA pins
+
+SCL 261 (TWI0) yellow, SDA 262 (TWI0) green
+SCL 263 (TWI1) yellow, SDA 264 (TWI1) green
+SCL 265 (TWI2) yellow, SDA 266 (TWI2) green
+
+# Note that system allocated I2C bus numbers
+# Use sudo i2cdetect -y 0 command to find 29 number in there printouts to find correct values for SMBUS
+# These are 0, 3, 4 in this case. Use SMBUS(num) in python code
+
+orangepi@orangepizero2w:~/Documents/robot/ros2_robot_v1$ sudo i2cdetect -y 0
+[sudo] password for orangepi: 
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+00:                         -- -- -- -- -- -- -- -- 
+10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+20: -- -- -- -- -- -- -- -- -- 29 -- -- -- -- -- -- 
+30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+70: -- -- -- -- -- -- -- --                         
+orangepi@orangepizero2w:~/Documents/robot/ros2_robot_v1$ sudo i2cdetect -y 1
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+00:                         -- -- -- -- -- -- -- -- 
+10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+30: -- -- -- -- -- -- UU -- -- -- -- -- -- -- -- -- 
+40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+70: -- -- -- -- -- -- -- --                         
+orangepi@orangepizero2w:~/Documents/robot/ros2_robot_v1$ sudo i2cdetect -y 2
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+00:                         -- -- -- -- -- -- -- -- 
+10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+30: 30 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+70: -- -- -- -- -- -- -- --                         
+orangepi@orangepizero2w:~/Documents/robot/ros2_robot_v1$ sudo i2cdetect -y 3
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+00:                         -- -- -- -- -- -- -- -- 
+10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+20: -- -- -- -- -- -- -- -- -- 29 -- -- -- -- -- -- 
+30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+70: -- -- -- -- -- -- -- --                         
+orangepi@orangepizero2w:~/Documents/robot/ros2_robot_v1$ sudo i2cdetect -y 4
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+00:                         -- -- -- -- -- -- -- -- 
+10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+20: -- -- -- -- -- -- -- -- -- 29 -- -- -- -- -- -- 
+30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+70: -- -- -- -- -- -- -- --                         
+orangepi@orangepizero2w:~/Documents/robot/ros2_robot_v1$
 
 # Asennetaan paketit suoraan viralliseen järjestelmäpolkuun, jota ROS 2 ei voi ohittaa
 sudo pip install smbus2 vl53l1x python-periphery --target=/usr/lib/python3/dist-packages --break-system-packages
@@ -342,3 +414,7 @@ ros2 launch lc_manager lc_manager.py
 
 
 python3 install vl53l5cx-ctypes
+
+
+sudo apt update
+sudo apt install ros-jazzy-xacro
