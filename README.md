@@ -336,8 +336,11 @@ overlays=pi-i2c0 pi-i2c1 pi-i2c2
 
 sudo nano /boot/orangepiEnv.txt
 save
-verify
+
+verify:
+
 sudo cat /boot/orangepiEnv.txt
+
 boot
 
 # VL53L5CX sensor default address is 0x29. Attach sensor wires in SCL/SDA pins
