@@ -1,5 +1,5 @@
-# This is used only in real HW
-# Separate HW class is easy to mock in unit tests or simulation class when real HW is not used
+# This class is used only in real HW
+# Separate HW class is easy to mock in unit tests or in simulation when real HW is not used
 
 import time
 from typing import Final, Tuple, List, Optional
@@ -51,9 +51,9 @@ class VL53L5CXHardwareInterface:
             time.sleep(0.5)
         return self.status
 
-    def restore_sensor_addres(self):
-        self.tof.set_i2c_address(0x29) # type: ignore
-        time.sleep(0.1)
+    # def restore_sensor_address(self):
+    #     self.tof.set_i2c_address(0x29) # type: ignore
+    #     time.sleep(0.1)
 
     def start_ranging(self) -> str:
         if self.status != "OK" or self.tof is None:
@@ -79,13 +79,12 @@ class VL53L5CXHardwareInterface:
         try:
             if self.tof.data_ready():
                 data = self.tof.get_data()
-                # Muutetaan ctypes-datamassa NumPyn kautta tavallisiksi 1D-listoiksi.
-                # flipud kääntää matriisin pystysuunnassa (kuten Pimoronin esimerkki vaatii).
-                # .flatten() varmistaa, että palautus on suora 64 alkion jono 8x8-matriisin sijaan.
+                # Convert result from ctypes to one list using NumPyn
+                # flipud turns matrix vertically. flatten() ensures that we have one dimension list if  64 items instead of  8x8 matrix
                 dist_grid = numpy.flipud(numpy.array(data.distance_mm).reshape((8, 8))).flatten()
                 stat_grid = numpy.flipud(numpy.array(data.target_status).reshape((8, 8))).flatten()
 
-                # Muutetaan listoiksi, jotta tyyppitarkistukset ja ROS2-noden silmukat toimivat heti
+                # Convert  numpy stuff to python lists for looping
                 distances = [int(d) for d in dist_grid]
                 status_info = [int(s) for s in stat_grid]
                 return distances, status_info, "OK"
@@ -98,7 +97,7 @@ class VL53L5CXHardwareInterface:
         if self.tof:
             try:
                 self.tof.stop_ranging()
-#                self.tof.restore_sensor_addres()
+#                self.tof.restore_sensor_address()
             except Exception:
                 pass
         try:

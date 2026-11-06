@@ -1,36 +1,41 @@
-# i2c_bus = 0
-# SDA 22 (TWI0_SDA) Green wire
-# SCL 15 (TWI0_SCL) Yellow wire
-# XSHUT front-left 29/PI0/256 Gray wire
-# XSHUT front-right 31/PI15/271 Gray wire
-# XSHUT back-left 35/PI2/258 Gray wire
-# XSHUT back-right 37/PI16/272 Gray wire
+# i2c0 bus0
+# SCL 261 (TWI0) Yellow wire, SDA 262 (TWI0) Green wire
+
+# i2c0 bus2
+# SCL 265 (TWI2) Yellow wire, SDA 266 (TWI2) Green wire
+
+# Enable pins
+# LPn (XSHUT) front-left 29/PI0/256 Gray wire
+# LPn (XSHUT) front-right 31/PI15/271 Gray wire
+# LPn (XSHUT) back-left 35/PI2/258 Gray wire
+# LPn (XSHUT) back-right 37/PI16/272 Gray wire
 
 import time
 import math
 from enum import Enum
 from typing import Final, Dict
+import threading
 import rclpy
-#from rclpy.node import Node # timer
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from std_msgs.msg import String, Header
+from std_msgs.msg import Header
 from sensor_msgs.msg import PointCloud2, PointField
 from sensor_msgs_py import point_cloud2
 from smbus2 import SMBus
 from proximity_sensor.hardware_interface import VL53L5CXHardwareInterface
 
-class GPIO_pins(Enum):
+class GPIO_LPn_pins(Enum):
     FRONT_LEFT = 256
     FRONT_RIGHT = 271
     BACK_LEFT = 258
     BACK_RIGHT = 272
 
 class VL53L5CX():
-    def __init__(self, node: LifecycleNode, name: str, hardware_interface):
+    def __init__(self, node: LifecycleNode, name: str, hardware_interface, bus_lock: threading.Lock):
         self.node = node
         self.sensor = hardware_interface
+        self.bus_lock = bus_lock
         self.name: Final[str] = name
         self.logger = node.get_logger()
         self.timer = None
@@ -147,29 +152,27 @@ class VL53L5CX():
 
     def read_sensor(self):
         try:
-            start = time.perf_counter()
-            self.get_data_count = self.get_data_count + 1
+            with self.bus_lock:
+                start = time.perf_counter()
+                self.get_data_count = self.get_data_count + 1
 
-            # Read distance in millimeters
-            distances, status_info, status = self.sensor.get_distances_and_statuses()
-            if status == "NO_NEW_DATA":
-                return None, None, status
+                # Read distance in millimeters
+                distances, status_info, status = self.sensor.get_distances_and_statuses()
+                if status == "NO_NEW_DATA":
+                    return None, None, status
 
-            back_elapsed = time.perf_counter()
-            self.data_received_count = self.data_received_count + 1
+                back_elapsed = time.perf_counter()
+                self.data_received_count = self.data_received_count + 1
+
+                # Less CPU is used if this check is inside the lock with current reading settings (set_ranging_frequency_hz(15))!
+                if isinstance(distances, str):
+                    self.logger.error(f"Sensor {self.name} HW error: {status}")
+                    return None, None, status
 
             self.logger.info(
-                f"Back {self.name}: {(back_elapsed - start)*1000:.1f} ms, get_data_count: {self.get_data_count}, data_received_count: {self.data_received_count}",
+                f"{self.name}: {(back_elapsed - start)*1000:.1f} ms, get_data_count: {self.get_data_count}, data_received_count: {self.data_received_count}",
                 throttle_duration_sec=1.0)
 
-            if isinstance(distances, str):
-                self.logger.error(f"Sensor {self.name} HW error: {status}")
-                return None, None, status
-
-            # self.logger.info(f"Sensor: {self.name}, distances: {distances}",
-            #                  throttle_duration_sec=1.0) # Print in log once per second
-            # self.logger.info(f"Sensor: {self.name}, statuses: {status_info}",
-            #                  throttle_duration_sec=1.0) # Print in log once per second
             return distances, status_info, status
         except Exception as e:
             self.logger.error(f"Error in reading sensor: {self.name} {e}")
@@ -189,83 +192,49 @@ class ProximitySensorNode(LifecycleNode):
         self.pub_range : LifecyclePublisher
         self.smbus = None
         self.timer = None
-        self.smbus0 = SMBus(0)
-        self.smbus3 = SMBus(3)
-        self.get_logger().info("I2C SMBus-väylät avattu onnistuneesti __init__-vaiheessa.")
+        self.smbus0 = SMBus(0) # i2c0 / TWI0
+        self.smbus3 = SMBus(3) # i2c2 / TWI2
 
+        lock_bus0 = threading.Lock()
+        lock_bus3 = threading.Lock()
 
-        # Create sensors
-        #hw_sensor_front_left = VL53L5CXHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value)
-        hw_sensor_front_right = VL53L5CXHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value)
-        #hw_sensor_back_right = VL53L5CXHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value)
-        hw_sensor_back_left = VL53L5CXHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value)
-        self.get_logger().info('Step3')
-
+        # Create HW sensor objects
         try:
-            # status = hw_sensor_front_left.initialize_sensor(self.smbus3, 0x30)
-            # self.get_logger().info(f"hw_sensor_front_left: {status}")
-            status = hw_sensor_front_right.initialize_sensor(self.smbus3, 0x29)
+            hw_sensor_front_left = VL53L5CXHardwareInterface('front_left', GPIO_LPn_pins.FRONT_LEFT.value) # i2c2
+            hw_sensor_front_right = VL53L5CXHardwareInterface('front_right', GPIO_LPn_pins.FRONT_RIGHT.value) # i2c2
+            hw_sensor_back_right = VL53L5CXHardwareInterface('back_right', GPIO_LPn_pins.BACK_RIGHT.value)  # i2c0
+            hw_sensor_back_left = VL53L5CXHardwareInterface('back_left', GPIO_LPn_pins.BACK_LEFT.value) # i2c0
+        except Exception as e:
+             self.get_logger().error(f"Error in HW interface object creation: {e}")
+
+        # Initialize sensors
+        try:
+            status = hw_sensor_front_left.initialize_sensor(self.smbus3, 0x30) # i2c2
+            self.get_logger().info(f"hw_sensor_front_left: {status}")
+            status = hw_sensor_front_right.initialize_sensor(self.smbus3, 0x29) # i2c2
             self.get_logger().info(f"hw_sensor_front_right: {status}")
-#            status = hw_sensor_back_right.initialize_sensor(self.smbus0, 0x29)
-            #status = hw_sensor_back_right.initialize_sensor(self.smbus0, 0x30)
-            #self.get_logger().info(f"hw_sensor_back_right: {status}")
-            status = hw_sensor_back_left.initialize_sensor(self.smbus0, 0x29)
+            status = hw_sensor_back_right.initialize_sensor(self.smbus0, 0x30) # i2c0
+            self.get_logger().info(f"hw_sensor_back_right: {status}")
+            status = hw_sensor_back_left.initialize_sensor(self.smbus0, 0x29) # i2c0
             self.get_logger().info(f"hw_sensor_back_left: {status}")
         except Exception as e:
-            return f"Error in initializing sensor: {e}"
+            self.get_logger().error(f"Error in initializing sensor: {e}")
 
-        self.get_logger().info('Step4')
-
-        self.sensors = {
-            #'front_left': VL53L5CX(self, 'front_left', hw_sensor_front_left),
-            'front_right': VL53L5CX(self, 'front_right', hw_sensor_front_right),
-            #'back_right': VL53L5CX(self, 'back_right', hw_sensor_back_right)
-            'back_left': VL53L5CX(self, 'back_left', hw_sensor_back_left),
-        }
+        # Create sensor objects
+        try:
+            self.sensors = {
+                'front_left': VL53L5CX(self, 'front_left', hw_sensor_front_left, lock_bus3), # i2c2
+                'front_right': VL53L5CX(self, 'front_right', hw_sensor_front_right, lock_bus3), # i2c2
+                'back_right': VL53L5CX(self, 'back_right', hw_sensor_back_right, lock_bus0), # i2c0
+                'back_left': VL53L5CX(self, 'back_left', hw_sensor_back_left, lock_bus0), # i2c0
+            }
+        except Exception as e:
+            self.get_logger().error(f"Error in VL53L5CX object creation: {e}")
 
         self.get_logger().info("ProximitySensorNode created")
 
     def on_configure(self, state):
         self.get_logger().info("IN on_configure state")
-
-        # Define bus for I2C communication. Defined at /boot/orangepiEnv.txt (overlays=pi-i2c0 pi-i2c2)
-        # smbus0 = SMBus(0) # sudo i2cdetect -y 0
-        # smbus3 = SMBus(3) # sudo i2cdetect -y 3
-        # self.get_logger().info('Step2')
-
-        # # Create sensors
-        # #hw_sensor_front_left = VL53L5CXHardwareInterface('front_left', GPIO_pins.FRONT_LEFT.value)
-        # #hw_sensor_front_right = VL53L5CXHardwareInterface('front_right', GPIO_pins.FRONT_RIGHT.value)
-        # hw_sensor_back_right = VL53L5CXHardwareInterface('back_right', GPIO_pins.BACK_RIGHT.value)
-        # hw_sensor_back_left = VL53L5CXHardwareInterface('back_left', GPIO_pins.BACK_LEFT.value)
-        # self.get_logger().info('Step3')
-
-        # try:
-        #     # status = hw_sensor_front_left.initialize_sensor(smbus3, 0x30)
-        #     # self.get_logger().info(f"hw_sensor_front_left: {status}")
-        #     # status = hw_sensor_front_right.initialize_sensor(smbus3, 0x29)
-        #     # self.get_logger().info(f"hw_sensor_front_right: {status}")
-        #     status = hw_sensor_back_right.initialize_sensor(self.smbus0, 0x29)
-        #     #status = hw_sensor_back_right.initialize_sensor(smbus0, 0x30)
-        #     self.get_logger().info(f"hw_sensor_back_right: {status}")
-        #     status = hw_sensor_back_left.initialize_sensor(self.smbus3, 0x29)
-        #     self.get_logger().info(f"hw_sensor_back_left: {status}")
-        # except Exception as e:
-        #     return f"Error in initializing sensor: {e}"
-        # self.get_logger().info('Step4')
-
-        # self.sensors = {
-        #     #'front_left': VL53L5CX(self, 'front_left', hw_sensor_front_left),
-        #     #'front_right': VL53L5CX(self, 'front_right', hw_sensor_front_right),
-        #     'back_left': VL53L5CX(self, 'back_left', hw_sensor_back_left),
-        #     'back_right': VL53L5CX(self, 'back_right', hw_sensor_back_right)
-        # }
-
-#        self.set_move_direction("backward")
-#        self.set_move_direction("forward")
-
-#        self.move_direction_sub = self.create_subscription(String, '/move/direction', self.set_move_direction_callback, 10)
-
         self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS
 
@@ -275,8 +244,6 @@ class ProximitySensorNode(LifecycleNode):
         for _, sensor in self.sensors.items():
             sensor.activate()
 
-        # Create timer which expires after every ~0.066 second (15 Hz) and publishes sensor data
-#        self.timer = self.create_timer(0.066, self.read_and_publish)
         return super().on_activate(state)
 
     def on_deactivate(self, state):
@@ -293,85 +260,9 @@ class ProximitySensorNode(LifecycleNode):
         self.sensors.clear()
         return TransitionCallbackReturn.SUCCESS
 
-    # def set_move_direction_callback(self, msg: String):
-    #     if not self.is_activated:
-    #         return
-#        self.set_move_direction(msg.data)
-
-    # def set_move_direction(self, direction: str):
-    #     self.get_logger().info(f"Setting move direction to: {direction}")
-    #     self.active_sensors = {'front_left', 'front_right','back_left', 'back_right'}
-    #     for name in self.active_sensors:
-    #         sensor = self.sensors.get(name)
-    #         if sensor:
-    #             sensor.start_ranging()
-
-
-        # if direction in {"stop", "forward", "backward"}:
-        #     self.move_direction = direction
-        #     inactive_sensors = {}
-        #     if direction == "forward":
-        #         self.active_sensors = {'front_left', 'front_right'}
-        #         inactive_sensors = {'back_left', 'back_right'}
-        #     elif direction == "backward":
-        #         inactive_sensors = {'front_left', 'front_right'}
-        #         self.active_sensors = {'back_left', 'back_right'}
-        #     elif direction == "stop":
-        #         for name in self.active_sensors:
-        #             sensor = self.sensors.get(name)
-        #             if sensor:
-        #                 sensor.stop_ranging()
-        #         self.active_sensors = {}
-        #         return
-
-        # #     # Stop ranging
-        #     for name in inactive_sensors:
-        #         sensor = self.sensors.get(name)
-        #         if sensor:
-        #             sensor.stop_ranging()
-
-        #     # Start ranging
-        #     for name in self.active_sensors:
-        #         sensor = self.sensors.get(name)
-        #         if sensor:
-        #             sensor.start_ranging()
-        # else:
-        #    self.get_logger().error(f"invalid in move direction: {direction}")
-
-#    def read_and_publish(self):
-        # if self.move_direction == "forward":
-        #     active_sensors = {'front_left', 'front_right'}
-        # else:
-        #     active_sensors = {'back_left', 'back_right'}
-
-        # for name in active_sensors:
-        #     sensor = self.sensors.get(name)
-        #     if sensor:
-        #         sensor.read_and_publish()
-
-#        start = time.perf_counter()
-
-        # self.sensors['front_left'].read_and_publish()
-        # self.sensors['front_right'].read_and_publish()
-
-        # front_elapsed = time.perf_counter()
-
- #       self.sensors['back_left'].read_and_publish()
- #       self.sensors['back_right'].read_and_publish()
-
-#        back_elapsed = time.perf_counter()
-
- #       self.get_logger().info(
-            #f"Front: {(front_elapsed - start)*1000:.1f} ms, "
-            #f"Back: {(back_elapsed - front_elapsed)*1000:.1f} ms",
-#            f"Back: {(back_elapsed - start)*1000:.1f} ms",
-#            throttle_duration_sec=1.0)
-
 def main(args=None):
     rclpy.init(args=args)
     node = ProximitySensorNode()
-
-#    executor = MultiThreadedExecutor(num_threads=4)
     executor = MultiThreadedExecutor()
     executor.add_node(node)
 
@@ -380,25 +271,11 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        # Puhdistetaan sensorit
         if hasattr(node, 'sensors'):
             for _, sensor in node.sensors.items():
                 sensor.cleanup()
         node.destroy_node()
         rclpy.shutdown()
-
-# def main(args=None):
-#     rclpy.init(args=args)
-#     node = ProximitySensorNode()
-#     try:
-#         rclpy.spin(node)
-#     except KeyboardInterrupt:
-#         pass
-#     finally:
-#         for _, sensor in node.sensors.items():
-#             sensor.cleanup()
-#         node.destroy_node()
-#         rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
