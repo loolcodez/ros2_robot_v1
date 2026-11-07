@@ -12,7 +12,8 @@ class OdometerNode(LifecycleNode):
         # Physical dimensions
         self.counts_per_revolution = 1320.0 # Encoder counts
         self.wheel_diameter = 0.065 # 65mm
-        self.wheel_separation = 0.20 # 0.2M left - right, measured middle of wheels
+        self.wheel_separation = 0.20 # 0.2M Distance of left and right wheel, measured middle of wheels
+        self.wheel_base = 0.155 # 0.155M distance of front axis and back axis
 
         self.previous_counts = None
         self.last_time = self.get_clock().now()
@@ -22,7 +23,7 @@ class OdometerNode(LifecycleNode):
         self.y = 0.0
         self.th = 0.0
         self.encoder_sub = None
-        self.odom_pub : LifecyclePublisher
+        self.odom_pub: LifecyclePublisher
         self.get_logger().info('OdometerNode created')
 
     def on_configure(self, state):
@@ -40,7 +41,7 @@ class OdometerNode(LifecycleNode):
         return super().on_activate(state)
 
     def on_deactivate(self, state):
-        self.get_logger().info("IN on_deactive state")
+        self.get_logger().info("IN on_deactivate state")
         self.is_activated = False
         return super().on_activate(state)
 
@@ -69,12 +70,18 @@ class OdometerNode(LifecycleNode):
 
         # Change pulses to meters
         pulse_to_meter = (math.pi * self.wheel_diameter) / self.counts_per_revolution
-        d_left = delta_left * pulse_to_meter
-        d_right = delta_right * pulse_to_meter
+        d_lf = deltas[0] * pulse_to_meter  # Left Front
+        d_rf = deltas[1] * pulse_to_meter  # Right Front
+        d_lr = deltas[2] * pulse_to_meter  # Left Rear
+        d_rr = deltas[3] * pulse_to_meter  # Right Rear
 
-        # Averaged robots movement (linear distance and and direction change)
-        d_center = (d_right + d_left) / 2.0
-        d_theta = (d_right - d_left) / self.wheel_separation
+        # Average speed/moved distance include all four wheels
+        d_center = (d_lf + d_rf + d_lr + d_rr) / 4.0
+
+        # Skid steer kinematics, which includes robot's length and width (robots midpoint)
+        W = self.wheel_separation  # Distance of between left - right wheel midpoint
+        L = self.wheel_base        # Distance of between  front - back axis midpoint
+        d_theta = ((d_rf + d_rr) - (d_lf + d_lr)) / (2.0 * (W + L)) 
 
         # Update place in the world (Dead Reckoning)
         self.x += d_center * math.cos(self.th)

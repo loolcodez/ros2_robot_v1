@@ -1,0 +1,9 @@
+source;share/websocket/hook/pythonpath.ps1
+source;share/websocket/hook/pythonpath.dsv
+source;share/websocket/hook/pythonpath.sh
+source;share/websocket/hook/ament_prefix_path.ps1
+source;share/websocket/hook/ament_prefix_path.dsv
+source;share/websocket/hook/ament_prefix_path.sh
+source;../../build/websocket/share/websocket/hook/pythonpath_develop.ps1
+source;../../build/websocket/share/websocket/hook/pythonpath_develop.dsv
+source;../../build/websocket/share/websocket/hook/pythonpath_develop.sh

@@ -97,7 +97,7 @@ class DriverNode(LifecycleNode):
         return super().on_activate(state)
 
     def on_deactivate(self, state):
-        self.get_logger().info("IN on_deactive state")
+        self.get_logger().info("IN on_deactivate state")
         self.shutdown = True
         self.stop_motors()
         return super().on_deactivate(state)
@@ -324,8 +324,12 @@ class DriverNode(LifecycleNode):
             ]
 
             # Orientation data is not filled as we read raw data (first element of covariance = -1)
-            imu_msg.orientation_covariance[0] = -1.0
-
+            # Orientation data is not filled as we read raw data (first element = -1.0)
+            imu_msg.orientation_covariance = [
+                -1.0, 0.0, 0.0,
+                 0.0, 0.0, 0.0,
+                 0.0, 0.0, 0.0
+            ]
             self.imu_pub.publish(imu_msg)
 
         except Exception as e:

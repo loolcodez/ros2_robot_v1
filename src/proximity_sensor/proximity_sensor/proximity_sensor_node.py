@@ -42,7 +42,6 @@ class VL53L5CX():
         self.get_data_count = 0
         self.data_received_count = 0
 
-
         # Sensor physical limits
         self.min_dist = 1
         self.max_dist = 4000
@@ -247,7 +246,7 @@ class ProximitySensorNode(LifecycleNode):
         return super().on_activate(state)
 
     def on_deactivate(self, state):
-        self.get_logger().info("IN on_deactive state")
+        self.get_logger().info("IN on_deactivate state")
         self.is_activated = False
         for _, sensor in self.sensors.items():
             sensor.deactivate()
