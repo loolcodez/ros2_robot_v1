@@ -80,6 +80,16 @@
     </visual>
   </link>
   
+    <!-- IMU Linkki -->
+  <link name="imu_link">
+    <visual>
+      <geometry>
+        <box size="0.02 0.02 0.005"/>
+      </geometry>
+      <material name="orange"/>
+    </visual>
+  </link>
+
   <!-- ================= JOINTS ================= -->
   
   <!-- Front Left -->
@@ -108,6 +118,15 @@
     <parent link="base_link"/>
     <child link="tof_back_right_link"/>
     <origin xyz="-0.09 -0.08 0.08" rpy="0 0 3.14159"/>
+  </joint>
+
+  <!-- IMU link -->
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <!-- Sensor is placed 2.5cm forward, 2.2cm left and 2.0cm above from robot's center point -->
+    <!-- X (depth), Y (width), and Z (height)  -->
+    <origin xyz="0.025 0.022 0.02" rpy="0 0 0"/> 
   </joint>
 
 </robot>

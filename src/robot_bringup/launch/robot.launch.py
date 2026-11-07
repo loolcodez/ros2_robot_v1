@@ -15,6 +15,7 @@ def generate_launch_description():
     odometer_launch_dir = os.path.join(get_package_share_directory('odometer'), 'launch')
     driver_launch_dir = os.path.join(get_package_share_directory('driver'), 'launch')
     rsp_launch_dir = os.path.join(get_package_share_directory('robot_bringup'), 'launch')
+    ekf_node_launch_dir = os.path.join(get_package_share_directory('robot_bringup'), 'launch')
 
     launch_lc_manager = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(lc_manager_launch_dir, 'lc_manager.launch.py'))
@@ -56,6 +57,10 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(os.path.join(rsp_launch_dir, 'rsp.launch.py'))
     )
 
+    ekf_node = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(ekf_node_launch_dir, 'ekf_node.launch.py'))
+    )
+
     return LaunchDescription([
         launch_lc_manager,
         launch_safety_control,
@@ -67,4 +72,5 @@ def generate_launch_description():
         launch_odometer,
         launch_driver,
         rsp_launch,
+        ekf_node,
     ])

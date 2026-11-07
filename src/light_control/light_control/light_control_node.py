@@ -108,7 +108,7 @@ class LightsControlNode(LifecycleNode):
         return super().on_activate(state)
 
     def on_deactivate(self, state):
-        self.get_logger().info("IN on_deactive state")
+        self.get_logger().info("IN on_deactivate state")
         self.is_activated = False
         return super().on_activate(state)
 
@@ -187,7 +187,7 @@ class LightsControlNode(LifecycleNode):
             self.set_all_lights_off()
         else:
             self.get_logger().error(f"Unknown light setting command: {cmd}")
-        self.publish_status()
+#        self.publish_status()
 
     def start_blinking(self):
         self.blink_thread = Thread(target=self._blink_loop)
@@ -205,14 +205,14 @@ class LightsControlNode(LifecycleNode):
                         light.gpio_object.write(state_toggle)
             time.sleep(0.5) # Blink rate 0.5s ON and OFF
 
-    def publish_status(self):
-        import json
-        status = {
-            'lights': self.lights,
-        }
-        msg = String()
-        msg.data = json.dumps(status)
-        self.status_pub.publish(msg) # type: ignore  # pylint: disable=no-value-for-parameter
+    # def publish_status(self):
+    #     import json
+    #     status = {
+    #         'lights': self.lights,  <-- fix this
+    #     }
+    #     msg = String()
+    #     msg.data = json.dumps(status)
+    #     self.status_pub.publish(msg) # type: ignore  # pylint: disable=no-value-for-parameter
 
 def main(args=None):
     rclpy.init(args=args)

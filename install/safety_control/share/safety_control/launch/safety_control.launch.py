@@ -1,0 +1,1 @@
+/home/anssi/Asiakirjat/Robot/from_git_repo/ros2_robot_v1/build/safety_control/launch/safety_control.launch.py
