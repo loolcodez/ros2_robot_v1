@@ -72,3 +72,52 @@ https://www.theconstruct.ai/publish-subscribe-ros2-topic
 
 # ROS2 topic Command Line Tool – Debug ROS2 Topics From the Terminal
 https://roboticsbackend.com/ros2-topic-cmd-line-tool-debug-ros2-topics-from-the-terminal
+
+ros2 topic list
+
+/camera/status
+/camera_node/transition_event
+/cmd_lights
+/cmd_vel_in
+/cmd_vel_manual
+/cmd_vel_out
+/connection/status
+/diagnostics
+/driver_node/transition_event
+/imu/data_raw
+/joint_states
+/light_control_node/transition_event
+/lights_status
+/move/direction
+/odom_wheel
+/odometer_node/transition_event
+/odometry/filtered
+/parameter_events
+/power/alert
+/power/battery_status
+/power/battery_voltage
+/power/shutdown
+/power_control_node/transition_event
+/proximity_sensor_node/transition_event
+/range
+/robot_description
+/rosout
+/safety_control_node/transition_event
+/set_pose
+/tf
+/tf_static
+/tof/back_left
+/tof/back_right
+/tof/front_left
+/tof/front_right
+/websocket_node/transition_event
+/wheel_encoders
+
+ros2 topic echo /odometry/filtered --once
+
+ros2 topic hz /odometry
+
+ros2 topic echo /odometry/filtered --field twist.twist
+
+
+ros2 topic echo /wheel_encoders

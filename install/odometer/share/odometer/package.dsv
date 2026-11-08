@@ -1,9 +1,0 @@
-source;share/odometer/hook/pythonpath.ps1
-source;share/odometer/hook/pythonpath.dsv
-source;share/odometer/hook/pythonpath.sh
-source;share/odometer/hook/ament_prefix_path.ps1
-source;share/odometer/hook/ament_prefix_path.dsv
-source;share/odometer/hook/ament_prefix_path.sh
-source;../../build/odometer/share/odometer/hook/pythonpath_develop.ps1
-source;../../build/odometer/share/odometer/hook/pythonpath_develop.dsv
-source;../../build/odometer/share/odometer/hook/pythonpath_develop.sh

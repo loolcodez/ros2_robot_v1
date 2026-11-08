@@ -87,6 +87,7 @@
         <box size="0.02 0.02 0.005"/>
       </geometry>
       <material name="orange"/>
+        <color rgba="1.0 0.5 0.0 1.0"/> <!-- Punainen=1.0, Vihreä=0.5, Sininen=0.0, Läpinäkyvyys=1.0 -->
     </visual>
   </link>
 

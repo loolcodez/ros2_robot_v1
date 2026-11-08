@@ -64,15 +64,11 @@ class OdometerNode(LifecycleNode):
         # Count change in pulses (delta) for every motor
         deltas = [curr - prev for curr, prev in zip(current_counts, self.previous_counts)]
 
-        # Average left and right side (Example: M0 and M2 left, M1 and M3 right)
-        delta_left = (deltas[0] + deltas[2]) / 2.0
-        delta_right = (deltas[1] + deltas[3]) / 2.0
-
         # Change pulses to meters
         pulse_to_meter = (math.pi * self.wheel_diameter) / self.counts_per_revolution
         d_lf = deltas[0] * pulse_to_meter  # Left Front
-        d_rf = deltas[1] * pulse_to_meter  # Right Front
-        d_lr = deltas[2] * pulse_to_meter  # Left Rear
+        d_rf = -deltas[1] * pulse_to_meter  # Right Front
+        d_lr = -deltas[2] * pulse_to_meter  # Left Rear
         d_rr = deltas[3] * pulse_to_meter  # Right Rear
 
         # Average speed/moved distance include all four wheels
@@ -81,7 +77,8 @@ class OdometerNode(LifecycleNode):
         # Skid steer kinematics, which includes robot's length and width (robots midpoint)
         W = self.wheel_separation  # Distance of between left - right wheel midpoint
         L = self.wheel_base        # Distance of between  front - back axis midpoint
-        d_theta = ((d_rf + d_rr) - (d_lf + d_lr)) / (2.0 * (W + L)) 
+        # Running left must give positive values
+        d_theta = ((d_lf + d_lr) - (d_rf + d_rr)) / (2.0 * (W + L))
 
         # Update place in the world (Dead Reckoning)
         self.x += d_center * math.cos(self.th)
@@ -104,7 +101,7 @@ class OdometerNode(LifecycleNode):
 
         # Speeds (m/s and rad/s)
         odom.twist.twist.linear.x = d_center / dt
-        odom.twist.twist.angular.z = d_theta / dt
+        odom.twist.twist.angular.z = d_theta / dt # Direction corrected here
         # self.get_logger().info(
         #     f"Odom state | linear_x: {odom.twist.twist.linear.x:.2f}, "
         #     f"angular_z: {odom.twist.twist.angular.z:.2f}, "
@@ -116,6 +113,12 @@ class OdometerNode(LifecycleNode):
 
         self.previous_counts = current_counts
         self.last_time = current_time
+
+        # self.get_logger().info(
+        #     f"RAAKADATA | Eteen/Taakse (linear.x): {odom.twist.twist.linear.x:.3f} m/s | "
+        #     f"Kääntyminen (angular.z): {odom.twist.twist.angular.z:.3f} rad/s",
+        #     throttle_duration_sec=0.5  # Tulostaa vain kerran sekunnissa
+        #)
 
 def main(args=None):
     rclpy.init(args=args)
