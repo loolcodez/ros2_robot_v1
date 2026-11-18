@@ -152,25 +152,25 @@ class VL53L5CX():
     def read_sensor(self):
         try:
             with self.bus_lock:
-                start = time.perf_counter()
-                self.get_data_count = self.get_data_count + 1
+                #start = time.perf_counter()
+                #self.get_data_count = self.get_data_count + 1
 
                 # Read distance in millimeters
                 distances, status_info, status = self.sensor.get_distances_and_statuses()
                 if status == "NO_NEW_DATA":
                     return None, None, status
 
-                back_elapsed = time.perf_counter()
-                self.data_received_count = self.data_received_count + 1
+                #back_elapsed = time.perf_counter()
+                #self.data_received_count = self.data_received_count + 1
 
                 # Less CPU is used if this check is inside the lock with current reading settings (set_ranging_frequency_hz(15))!
                 if isinstance(distances, str):
                     self.logger.error(f"Sensor {self.name} HW error: {status}")
                     return None, None, status
 
-            self.logger.info(
-                f"{self.name}: {(back_elapsed - start)*1000:.1f} ms, get_data_count: {self.get_data_count}, data_received_count: {self.data_received_count}",
-                throttle_duration_sec=1.0)
+            #self.logger.info(
+            #    f"{self.name}: {(back_elapsed - start)*1000:.1f} ms, get_data_count: {self.get_data_count}, data_received_count: {self.data_received_count}",
+            #    throttle_duration_sec=1.0)
 
             return distances, status_info, status
         except Exception as e:
