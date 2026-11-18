@@ -1,14 +1,17 @@
 ekf_filter_node:
   ros__parameters:
-    frequency: 30.0
+    # EKF localization node update frequency. Too high value will give "Failed to meet update rate!" error
+    # Try 10.0 tai 15.0 values:
+    frequency: 15.0
     two_d_mode: true
     publish_tf: true
 
     # Coordinations
-    map_frame: map              # World coordination (global)
-    odom_frame: odom            # EKF:n calculated improved odometry coordination
-    base_link_frame: base_link  # Robot's physical center point
-    world_frame: odom           # Robot does bot have GPS, odom is therefore world's center point
+    map_frame: map                  # World coordination (global)
+    odom_frame: odom                # EKF:n calculated improved odometry coordination
+    base_link_frame: base_link # Robot's physical center point
+    world_frame: odom               # Robot does bot have GPS, odom is therefore world's center point
+    #transform_timeout: 0.03 # Allow TF transform 30ms buffer time. This is fix for jitter in WI-FI problem seen by Rviz2
 
     # Wheel odometry (From OdometerNode)
     odom0: /odom_wheel
