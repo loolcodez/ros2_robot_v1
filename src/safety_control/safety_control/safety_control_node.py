@@ -23,9 +23,10 @@ class SafetyControlNode(LifecycleNode):
 
         self.range_sub = None
         self.manual_control_sub = None
-        self.manual_control_sub = None
+        self.ai_control_sub = None
         self.power_alert_sub = None
         self.cmd_vel_out_pub : LifecyclePublisher
+        self.direction_pub : LifecyclePublisher
 
         self.get_logger().info(f"Safety Node created. Safety distance: {self.safety_distance_mm} mm")
 
@@ -35,10 +36,10 @@ class SafetyControlNode(LifecycleNode):
         self.range_sub = self.create_subscription(String, 'range', self.range_callback, 10)
 
         # Listener for incoming control commands from joystick
-        self.manual_control_sub = self.create_subscription(String, 'cmd_vel_manual', self.cmd_vel_manual_callback, 10)
+        self.manual_control_sub = self.create_subscription(String, 'robot/cmd_vel_manual', self.cmd_vel_manual_callback, 10)
 
         # Listener for incoming control commands from AI
-        self.manual_control_sub = self.create_subscription(Twist, 'cmd_vel_in', self.cmd_vel_in_callback, 10)
+        self.ai_control_sub = self.create_subscription(Twist, 'cmd_vel_in', self.cmd_vel_in_callback, 10)
 
         # Listener for power alert
         self.power_alert_sub = self.create_subscription(String, '/power/alert', self.power_alert_callback, 10)
