@@ -58,9 +58,29 @@ class SafetyControlNode(LifecycleNode):
         return super().on_activate(state)
 
     def on_deactivate(self, state):
-        self.get_logger().info("IN on_deactive state")
+        self.get_logger().info("IN on_deactivate state")
         self.is_activated = False
         return super().on_activate(state)
+
+    def on_cleanup(self, state):
+        self.get_logger().info("IN on_cleanup state")
+        
+        if hasattr(self, 'range_sub') and self.range_sub:
+            self.destroy_subscription(self.range_sub)
+        if hasattr(self, 'manual_control_sub') and self.manual_control_sub:
+            self.destroy_subscription(self.manual_control_sub)
+        if hasattr(self, 'ai_control_sub') and self.ai_control_sub:
+            self.destroy_subscription(self.ai_control_sub)
+        if hasattr(self, 'power_alert_sub') and self.power_alert_sub:
+            self.destroy_subscription(self.power_alert_sub)
+            
+        if hasattr(self, 'cmd_vel_out_pub') and self.cmd_vel_out_pub:
+            self.destroy_publisher(self.cmd_vel_out_pub)
+        if hasattr(self, 'direction_pub') and self.direction_pub:
+            self.destroy_publisher(self.direction_pub)
+            
+        self.get_logger().info("Returning SUCCESS from cleanup")
+        return TransitionCallbackReturn.SUCCESS
 
     def range_callback(self, msg):
         """Update latest distance information"""

@@ -21,7 +21,7 @@ class VL53L5CXHardwareInterface:
         try:
             self.lpn = GPIO(lp_pin, "out")
             self.lpn.write(False) # LPn pin to LOW
-            time.sleep(0.5)
+            time.sleep(0.2)
         except Exception as e:
             self.status = f"{self.name} GPIO initialization failed on lp_pin: {lp_pin}: {e}"
 
@@ -31,12 +31,12 @@ class VL53L5CXHardwareInterface:
 
         self.target_address = target_address
         self.lpn.write(True) # LPn pin to HIGH
-        time.sleep(0.3)
+        time.sleep(0.2)
         try:
             if target_address != 0x29:
                 temp_tof = vl53l5cx.VL53L5CX(i2c_addr=0x29, i2c_dev=smbus)
                 temp_tof.set_i2c_address(target_address)
-                time.sleep(0.1)
+                #time.sleep(0.1)
 
                 self.tof = vl53l5cx.VL53L5CX(i2c_addr=target_address, i2c_dev=smbus)
             else:
@@ -48,7 +48,7 @@ class VL53L5CXHardwareInterface:
         except Exception as e:
             self.status = f"{self.name} sensor initialization failed on bus {smbus}, address {target_address:#x}: {e}"
             #self.lpn.write(False) # LPn pin to LOW
-            time.sleep(0.5)
+            #time.sleep(0.2)
         return self.status
 
     # def restore_sensor_address(self):

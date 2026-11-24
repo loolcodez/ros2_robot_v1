@@ -2,14 +2,21 @@
 <robot xmlns:xacro="http://ros.org" name="oma_robotti">
 
   <!-- Ground point below robot between axis -->
-  <link name="base_footprint"/>
+  <link name="base_footprint">
+    <visual>
+      <geometry>
+        <!-- Tehdään 1 millimetrin kokoinen olematon laatikko lattiantasoa varten -->
+        <box size="0.001 0.001 0.001"/>
+      </geometry>
+    </visual>
+  </link>
 
   <!-- Robot base-->
   <link name="base_link">
     <visual>
       <geometry>
         <!-- X (depth), Y (width), and Z (height)  -->
-        <!-- Robot total size measured form wheels depth=0.22m, width=0.23m, high=0.07m -->
+        <!-- Robot total size measured from wheels depth=0.22m, width=0.23m, high=0.07m -->
         <!-- Robot base plate depth=0.20m, width=0.15m, hight=0.07m -->
         <box size="0.20 0.15 0.07"/>
       </geometry>
@@ -20,10 +27,10 @@
   </link>
 
   <joint name="base_joint" type="fixed">
-    <parent link="base_footprint"/>
-    <child link="base_link"/>
-    <!-- Lift up body 7cm from earth -->
-    <origin xyz="0 0 0.07" rpy="0 0 0"/>
+    <parent link="base_link"/>         <!-- base_link on kaiken ydin (parent) -->
+    <child link="base_footprint"/>      <!-- base_footprint haarautuu tästä alaspäin -->
+    <!-- Lattia on 7cm akselipisteen alapuolella -->
+    <origin xyz="0 0 -0.07" rpy="0 0 0"/> 
   </joint>
 
   <!-- ================= SENSOR LINKS ================= -->
@@ -80,6 +87,18 @@
     </visual>
   </link>
   
+    <!-- IMU Link -->
+  <link name="imu_link">
+    <visual>
+      <geometry>
+        <box size="0.02 0.02 0.005"/>
+      </geometry>
+      <material name="orange">
+        <color rgba="1.0 0.5 0.0 1.0"/> <!-- Punainen=1.0, Vihreä=0.5, Sininen=0.0, Läpinäkyvyys=1.0 -->
+      </material>
+     </visual>
+  </link>
+
   <!-- ================= JOINTS ================= -->
   
   <!-- Front Left -->
@@ -108,6 +127,15 @@
     <parent link="base_link"/>
     <child link="tof_back_right_link"/>
     <origin xyz="-0.09 -0.08 0.08" rpy="0 0 3.14159"/>
+  </joint>
+
+  <!-- IMU link -->
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <!-- Sensor is placed 2.5cm forward, 2.2cm left and 2.0cm above from robot's center point -->
+    <!-- X (depth), Y (width), and Z (height)  -->
+    <origin xyz="0.025 0.022 0.02" rpy="0 0 0"/> 
   </joint>
 
 </robot>

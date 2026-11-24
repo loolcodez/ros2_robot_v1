@@ -42,7 +42,6 @@ class VL53L5CX():
         self.get_data_count = 0
         self.data_received_count = 0
 
-
         # Sensor physical limits
         self.min_dist = 1
         self.max_dist = 4000
@@ -153,25 +152,25 @@ class VL53L5CX():
     def read_sensor(self):
         try:
             with self.bus_lock:
-                start = time.perf_counter()
-                self.get_data_count = self.get_data_count + 1
+                #start = time.perf_counter()
+                #self.get_data_count = self.get_data_count + 1
 
                 # Read distance in millimeters
                 distances, status_info, status = self.sensor.get_distances_and_statuses()
                 if status == "NO_NEW_DATA":
                     return None, None, status
 
-                back_elapsed = time.perf_counter()
-                self.data_received_count = self.data_received_count + 1
+                #back_elapsed = time.perf_counter()
+                #self.data_received_count = self.data_received_count + 1
 
                 # Less CPU is used if this check is inside the lock with current reading settings (set_ranging_frequency_hz(15))!
                 if isinstance(distances, str):
                     self.logger.error(f"Sensor {self.name} HW error: {status}")
                     return None, None, status
 
-            self.logger.info(
-                f"{self.name}: {(back_elapsed - start)*1000:.1f} ms, get_data_count: {self.get_data_count}, data_received_count: {self.data_received_count}",
-                throttle_duration_sec=1.0)
+            #self.logger.info(
+            #    f"{self.name}: {(back_elapsed - start)*1000:.1f} ms, get_data_count: {self.get_data_count}, data_received_count: {self.data_received_count}",
+            #    throttle_duration_sec=1.0)
 
             return distances, status_info, status
         except Exception as e:
@@ -247,7 +246,7 @@ class ProximitySensorNode(LifecycleNode):
         return super().on_activate(state)
 
     def on_deactivate(self, state):
-        self.get_logger().info("IN on_deactive state")
+        self.get_logger().info("IN on_deactivate state")
         self.is_activated = False
         for _, sensor in self.sensors.items():
             sensor.deactivate()

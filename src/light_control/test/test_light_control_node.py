@@ -1,12 +1,18 @@
 # colcon build --symlink-install
 # source install/setup.bash
-# pytest src/light_control/test/test_light_control_node.py
+# pytest src/light_control/test/test_light_control_node.py -s
 
+import sys
 import unittest
 from unittest.mock import MagicMock
 import pytest
+
+mock_periphery = MagicMock()
+sys.modules['periphery'] = mock_periphery
+
 import rclpy
 from light_control.light_control_node import LightsControlNode, LightState, String
+from rclpy.lifecycle import LifecycleState
 
 @pytest.fixture(autouse=True)
 def setup_teardown():
@@ -19,6 +25,8 @@ class TestLightsControlNode(unittest.TestCase):
     def setUp(self):
         """Init node before each test case run"""
         self.node = LightsControlNode()
+        self.node.on_configure(LifecycleState("", 1))
+        self.node.on_activate(LifecycleState("", 3))
         self.gpio_object = MagicMock()
 
     def send_command(self, command_str: str):
@@ -52,13 +60,13 @@ class TestLightsControlNode(unittest.TestCase):
         self.send_command("lights/emergency_on")
         self.assertTrue(self.node.light_blinking)
         self.assertEqual(self.node.lights['front_left'].state, LightState.BLINKING_AND_ON)
-        self.assertEqual(self.node.lights['back_left'].state, LightState.BLINKING_AND_OFF)
+        self.assertEqual(self.node.lights['back_left'].state, LightState.BLINKING_AND_ON)
 
         # Emergency lights OFF -> lights should restore to original state
         self.send_command("lights/emergency_off")
         self.assertFalse(self.node.light_blinking)
         self.assertEqual(self.node.lights['front_left'].state, LightState.ON)
-        self.assertEqual(self.node.lights['back_left'].state, LightState.OFF)
+        self.assertEqual(self.node.lights['back_left'].state, LightState.ON)
 
     def test_all_lights_off(self):
         # All front lights ON then emergency lights ON

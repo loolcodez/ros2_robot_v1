@@ -10,7 +10,7 @@ class PowerControlNode(LifecycleNode):
         super().__init__('power_control')
         self.is_activated = False
         self.beep_alert_sent = False
-        self.history_voltage = deque(maxlen=10) # Ring buffer for las 6 measurements (1 minute)
+        self.history_voltage = deque(maxlen=6) # Ring buffer for las 6 measurements (1 minute)
 
         self.connection_status_sub = None
         self.battery_voltage_sub = None
@@ -39,7 +39,7 @@ class PowerControlNode(LifecycleNode):
         return super().on_activate(state)
 
     def on_deactivate(self, state):
-        self.get_logger().info("IN on_deactive state")
+        self.get_logger().info("IN on_deactivate state")
         self.is_activated = False
         return super().on_activate(state)
 
@@ -80,25 +80,25 @@ class PowerControlNode(LifecycleNode):
             except subprocess.CalledProcessError as e:
                 self.get_logger().info(f"Failed to schedule shutdown: {e}")
 
-        status = f"{moving_average:.2f}V {status}"
-        msg = String()
-        msg.data = json.dumps({"sender": "Rover", "type": "control", "battery_status": status})
-        self.get_logger().info(f"Sending battery status: {msg.data}")
-        self.battery_status_pub.publish(msg)
+        status_str = f"{moving_average:.2f}V {status}"
+        telemetry_msg = String()
+        telemetry_msg.data = json.dumps({"sender": "Rover", "type": "control", "battery_status": status_str})
+        self.get_logger().info(f"Sending battery status: {telemetry_msg.data}")
+        self.battery_status_pub.publish(telemetry_msg)
 
     def get_battery_status(self, moving_average):
-        status = "Full"
-        if moving_average < 11.5:
-            status = "Good"
-        if moving_average < 11.2:
-            status = "Low"
-        if moving_average < 11.0:
-            status = "Very Low"
-        if moving_average < 10.8:
-            status = "Critical"
-        if moving_average < 10.6:
-            status = "Shutdown"
-        return status
+        if moving_average >= 11.5:
+            return "Full"
+        elif moving_average >= 11.2:
+            return "Good"
+        elif moving_average >= 11.0:
+            return "Low"
+        elif moving_average >= 10.8:
+            return "Very Low"
+        elif moving_average >= 10.6:
+            return "Critical"
+        else:
+            return "Shutdown"
 
 def main(args=None):
     rclpy.init(args=args)

@@ -2,6 +2,7 @@ import time
 import math
 from typing import List
 import rclpy
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn, LifecyclePublisher
 from geometry_msgs.msg import Twist  # Standard message type for robot movement
 from sensor_msgs.msg import Imu   # Standard message type for IMU data
@@ -97,7 +98,7 @@ class DriverNode(LifecycleNode):
         return super().on_activate(state)
 
     def on_deactivate(self, state):
-        self.get_logger().info("IN on_deactive state")
+        self.get_logger().info("IN on_deactivate state")
         self.shutdown = True
         self.stop_motors()
         return super().on_deactivate(state)
@@ -292,7 +293,7 @@ class DriverNode(LifecycleNode):
             gyro = self.driver.get_gyroscope_data() # type: ignore      # Returns (g_x, g_y, g_z)
 
             # Conversion to ROS2 unit (SI-unit)
-            deg_to_rad = math.pi / 180.0
+            #deg_to_rad = math.pi / 180.0
 
             # Create standard ROS2 IMU message
             imu_msg = Imu()
@@ -305,9 +306,12 @@ class DriverNode(LifecycleNode):
             imu_msg.linear_acceleration.z = float(accel[2])
 
             # Angular Velocity
-            imu_msg.angular_velocity.x = float(gyro[0]) * deg_to_rad
-            imu_msg.angular_velocity.y = float(gyro[1]) * deg_to_rad
-            imu_msg.angular_velocity.z = float(gyro[2]) * deg_to_rad # This axis measures turning
+            # imu_msg.angular_velocity.x = float(gyro[0]) * deg_to_rad
+            # imu_msg.angular_velocity.y = float(gyro[1]) * deg_to_rad
+            # imu_msg.angular_velocity.z = float(gyro[2]) * deg_to_rad # This axis measures turning
+            imu_msg.angular_velocity.x = float(gyro[0])
+            imu_msg.angular_velocity.y = -float(gyro[1]) # Gravity direction is fixed here
+            imu_msg.angular_velocity.z = float(gyro[2]) # This axis measures turning
 
             # Covariance estimate
             # As we do not make exact calibration yet let's set the ROS2 way. Main diagonal get's small noise value and the rest zero value.
@@ -324,8 +328,12 @@ class DriverNode(LifecycleNode):
             ]
 
             # Orientation data is not filled as we read raw data (first element of covariance = -1)
-            imu_msg.orientation_covariance[0] = -1.0
-
+            # Orientation data is not filled as we read raw data (first element = -1.0)
+            imu_msg.orientation_covariance = [
+                -1.0, 0.0, 0.0,
+                 0.0, 0.0, 0.0,
+                 0.0, 0.0, 0.0
+            ]
             self.imu_pub.publish(imu_msg)
 
         except Exception as e:
@@ -359,7 +367,11 @@ def main(args=None):
     node = None
     try:
         node = DriverNode()
-        rclpy.spin(node)
+        executor = MultiThreadedExecutor()
+        executor.add_node(node)
+        
+        executor.spin()
+        #rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:

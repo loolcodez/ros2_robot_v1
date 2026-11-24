@@ -9,6 +9,7 @@ import pytest
 import rclpy
 from test_fake_hardware_interface import FakeVL53L1XHardwareInterface
 from proximity_sensor.proximity_sensor_node import ProximitySensorNode, String
+from rclpy.lifecycle import LifecycleState
 
 @pytest.fixture(autouse=True)
 def setup_teardown():
@@ -30,6 +31,8 @@ class TestProximitySensorNode(unittest.TestCase):
 
         # Create tested node
         self.node = ProximitySensorNode()
+        self.node.on_configure(LifecycleState("", 1))
+        self.node.on_activate(LifecycleState("", 3))
 
     def test_initial_state_and_sensor_setup(self):
 
