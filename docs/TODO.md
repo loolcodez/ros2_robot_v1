@@ -9,7 +9,10 @@ Joystick:
 - Add activation/deactivation of self drive mode
 
 UTs:
-- Fix unit tests to work with lifecycle management
+- Fix light status publishing
+- Add on_cleanup in all nodes
+- Add proper setup and teardown function in all tests
+- Fix proximityControlNode test cases
 - Add more unit tests
 
 Robot control:
@@ -31,3 +34,6 @@ Navigation:
 - Add Nav2 node
 - Add anything needed in between for self drive!
 - Make robot driving in its own
+
+
+
