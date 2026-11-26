@@ -22,13 +22,13 @@ class PowerControlNode(LifecycleNode):
         self.get_logger().info("IN on_configure state")
 
         # Create subscribers
-        self.connection_status_sub = self.create_subscription(String, '/connection/status', self.handle_connection_status, 10)
-        self.battery_voltage_sub = self.create_subscription(Float32, '/power/battery_voltage', self.handle_battery_voltage, 10)
+        self.connection_status_sub = self.create_subscription(String, 'robot/connection/status', self.handle_connection_status, 10)
+        self.battery_voltage_sub = self.create_subscription(Float32, 'robot/power/battery_voltage', self.handle_battery_voltage, 10)
 
         # Create publishers
-        self.battery_status_pub = self.create_lifecycle_publisher(String, '/power/battery_status', 10) # type: ignore reportAttributeAccessIssue
-        self.power_shutdown_pub = self.create_lifecycle_publisher(String, '/power/shutdown', 10) # type: ignore reportAttributeAccessIssue
-        self.power_alert_pud = self.create_lifecycle_publisher(String, '/power/alert', 10) # type: ignore reportAttributeAccessIssue
+        self.battery_status_pub = self.create_lifecycle_publisher(String, 'robot/power/battery_status', 10) # type: ignore reportAttributeAccessIssue
+        self.power_shutdown_pub = self.create_lifecycle_publisher(String, 'robot/power/shutdown', 10) # type: ignore reportAttributeAccessIssue
+        self.power_alert_pud = self.create_lifecycle_publisher(String, 'robot/power/alert', 10) # type: ignore reportAttributeAccessIssue
 
         self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS

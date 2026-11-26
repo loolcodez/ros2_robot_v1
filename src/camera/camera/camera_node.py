@@ -26,7 +26,7 @@ class CameraNode(LifecycleNode):
     def on_configure(self, state):
         self.get_logger().info("IN on_configure state")
         # Front_ON, Front_OFF, Back_ON, Back_OFF, All_OFF
-        self.camera_status_sub = self.create_subscription(String, '/camera/status', self.handle_camera_status, 10)
+        self.camera_status_sub = self.create_subscription(String, 'camera/status', self.handle_camera_status, 10)
 
         self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS

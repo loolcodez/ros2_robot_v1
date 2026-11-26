@@ -48,13 +48,13 @@ class DriverNode(Node):
 
         # ROS2 communication
         self.manual_control_sub = self.create_subscription(message, 'cmd_vel_out', self.handle_speed_control_command, 10)
-        self.battery_voltage_pub = self.create_publisher(Float32, '/power/battery_voltage', 10)
-        self.power_alert_sub = self.create_subscription(String, '/power/alert', self.beep, 10)
-        self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
+        self.battery_voltage_pub = self.create_publisher(Float32, 'power/battery_voltage', 10)
+        self.power_alert_sub = self.create_subscription(String, 'power/alert', self.beep, 10)
+        self.power_shutdown_sub = self.create_subscription(String, 'power/shutdown', self.shutdown_callback, 10)
 
         # Sensor publishers
-        self.encoder_pub = self.create_publisher(Int32MultiArray, '/wheel_encoders', 10)
-        self.imu_pub = self.create_publisher(Imu, '/imu/data_raw', 10)
+        self.encoder_pub = self.create_publisher(Int32MultiArray, 'wheel_encoders', 10)
+        self.imu_pub = self.create_publisher(Imu, 'imu/data_raw', 10)
 
         if not self.initialize_driver():
             self.get_logger().error('Failed to initialize Rosmaster driver')

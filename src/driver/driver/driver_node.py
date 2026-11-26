@@ -116,13 +116,13 @@ class DriverNode(LifecycleNode):
         # Remember also destroy subscribers in on_deactivate in that case.
 
         self.drive_control_sub = self.create_subscription(Twist, 'cmd_vel_out', self.handle_speed_control_command, 10)
-        self.power_alert_sub = self.create_subscription(String, '/power/alert', self.beep, 10)
-        self.power_shutdown_sub = self.create_subscription(String, '/power/shutdown', self.shutdown_callback, 10)
+        self.power_alert_sub = self.create_subscription(String, 'power/alert', self.beep, 10)
+        self.power_shutdown_sub = self.create_subscription(String, 'power/shutdown', self.shutdown_callback, 10)
 
         # Sensor publishers
-        self.battery_voltage_pub = self.create_lifecycle_publisher(Float32, '/power/battery_voltage', 10) # type: ignore
-        self.encoder_pub = self.create_lifecycle_publisher(Int32MultiArray, '/wheel_encoders', 10) # type: ignore
-        self.imu_pub = self.create_lifecycle_publisher(Imu, '/imu/data_raw', 10) # type: ignore
+        self.battery_voltage_pub = self.create_lifecycle_publisher(Float32, 'power/battery_voltage', 10) # type: ignore
+        self.encoder_pub = self.create_lifecycle_publisher(Int32MultiArray, 'wheel_encoders', 10) # type: ignore
+        self.imu_pub = self.create_lifecycle_publisher(Imu, 'imu/data_raw', 10) # type: ignore
         self.get_logger().info('ROS2 communications created')
 
     def initialize_driver(self) -> bool:

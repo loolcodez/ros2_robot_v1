@@ -22,32 +22,37 @@ class SafetyControlNode(LifecycleNode):
         self.max_angular = float(self.get_parameter('max_angular').get_parameter_value().double_value)
 
         self.range_sub = None
+        self.joystick_control_sub = None
         self.manual_control_sub = None
         self.ai_control_sub = None
         self.power_alert_sub = None
-        self.cmd_vel_out_pub : LifecyclePublisher
+        self.cmd_vel_pub : LifecyclePublisher
         self.direction_pub : LifecyclePublisher
 
         self.get_logger().info(f"Safety Node created. Safety distance: {self.safety_distance_mm} mm")
 
     def on_configure(self, state):
         self.get_logger().info("IN on_configure state")
-        # Listener for distance sensors
-        self.range_sub = self.create_subscription(String, 'range', self.range_callback, 10)
 
-        # Listener for incoming control commands from joystick
-        self.manual_control_sub = self.create_subscription(String, 'robot/cmd_vel_manual', self.cmd_vel_manual_callback, 10)
+#        # Listener for distance sensors
+#        self.range_sub = self.create_subscription(String, 'robot/distance-range', self.range_callback, 10)
+
+        # Listener for incoming manual control commands from joystick
+        self.joystick_control_sub = self.create_subscription(String, 'robot/cmd_vel_manual', self.cmd_vel_manual_callback, 10)
+
+        # Listener for incoming control commands from manual control
+        self.manual_control_sub = self.create_subscription(Twist, 'control/cmd_vel', self.cmd_vel_in_callback, 10)
 
         # Listener for incoming control commands from AI
-        self.ai_control_sub = self.create_subscription(Twist, 'cmd_vel_in', self.cmd_vel_in_callback, 10)
+        self.ai_control_sub = self.create_subscription(Twist, 'ai/cmd_vel', self.cmd_vel_in_callback, 10)
 
         # Listener for power alert
-        self.power_alert_sub = self.create_subscription(String, '/power/alert', self.power_alert_callback, 10)
+        self.power_alert_sub = self.create_subscription(String, 'robot/power/alert', self.power_alert_callback, 10)
 
         # Publisher for checked command
-        self.cmd_vel_out_pub = self.create_lifecycle_publisher(Twist, 'cmd_vel_out', 10) # type: ignore reportAttributeAccessIssue
+        self.cmd_vel_pub = self.create_lifecycle_publisher(Twist, 'robot/cmd_vel', 10) # type: ignore reportAttributeAccessIssue
 
-        self.direction_pub = self.create_lifecycle_publisher(String, '/move/direction', 10) # type: ignore reportAttributeAccessIssue
+#        self.direction_pub = self.create_lifecycle_publisher(String, 'robot/move/direction', 10) # type: ignore reportAttributeAccessIssue
 
         self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS
@@ -64,7 +69,7 @@ class SafetyControlNode(LifecycleNode):
 
     def on_cleanup(self, state):
         self.get_logger().info("IN on_cleanup state")
-        
+
         if hasattr(self, 'range_sub') and self.range_sub:
             self.destroy_subscription(self.range_sub)
         if hasattr(self, 'manual_control_sub') and self.manual_control_sub:
@@ -73,12 +78,10 @@ class SafetyControlNode(LifecycleNode):
             self.destroy_subscription(self.ai_control_sub)
         if hasattr(self, 'power_alert_sub') and self.power_alert_sub:
             self.destroy_subscription(self.power_alert_sub)
-            
-        if hasattr(self, 'cmd_vel_out_pub') and self.cmd_vel_out_pub:
-            self.destroy_publisher(self.cmd_vel_out_pub)
+        if hasattr(self, 'cmd_vel_out_pub') and self.cmd_vel_pub:
+            self.destroy_publisher(self.cmd_vel_pub)
         if hasattr(self, 'direction_pub') and self.direction_pub:
             self.destroy_publisher(self.direction_pub)
-            
         self.get_logger().info("Returning SUCCESS from cleanup")
         return TransitionCallbackReturn.SUCCESS
 
@@ -183,7 +186,7 @@ class SafetyControlNode(LifecycleNode):
         # )
 
         # Publish filtered command to driver node
-        self.cmd_vel_out_pub.publish(twist_msg)
+        self.cmd_vel_pub.publish(twist_msg)
 
 def main(args=None):
     rclpy.init(args=args)

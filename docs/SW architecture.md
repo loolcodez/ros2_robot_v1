@@ -54,71 +54,106 @@
 
 # Imported ROS2 packages
 - Nav2
+- robot_state_publisher
+- ekf_robot_localization
 
 # Node descriptions
 
 ## WebsocketNode
+  This is old interface for simple Joystick control running in mobile
 
+  Published topics:
+   - robot/cmd_vel_manual
+       Drive control command coming from Joystick is published
 
-  Published topics
-  Subscribed topics
+   - robot/connection/status
+     Websocket connection status change is published
 
-##  SafetyNode
+  Subscribed topics:
+   - robot/power/battery_status
+     Battery status is forwarder over websocket to mobile
 
+##  SafetyControlNode
 
-  Published topics
-  Subscribed topics
+  Published topics:
+   -  robot/cmd_vel
+      Publishes robot drive commands consumed by driver node
+    
+   -  robot/move/direction
+      Publishes robot move direction based on control data. Currently not used 
+
+  Subscribed topics:
+    - robot/distance-range
+      Subscribes robot distance sensor data. Currently not use and not published in this topic
+
+    - robot/cmd_vel_manual
+      Manual control commands coming from Joystick node
+
+    - control/cmd_vel
+      Manual control commands coming from mobile Control
+
+    - ai/cmd_vel
+      AI control commands coming form AI server
+
+    - robot/power/alert
+      Power alerts coming from power control node
 
 ## ProximitySensorNode
 
+  Published topics:
+   - robot/tof/front_left
+   - robot/tof/front_right
+   - robot/tof/back_left
+   - robot/tof/back_right
+      Publishes ToF sensor data to robot_state_publisher and ekf_robot_localization nodes
 
-  Published topics
-  Subscribed topics
+  Subscribed topics:
+    - None
 
 ## PowerControlNode
 
+  Published topics:
+   - robot/power/battery_status
+     Publishes robotäs battery status. Joystick and Control are consumers
 
-  Published topics
-  Subscribed topics
+   - robot/power/shutdown
+     Publishes robot shutdown down command. Driver is consumer
+
+   - robot/power/alert
+     Publishes power alert. Diver node is consumer
+
+  Subscribed topics:
+   - robot/connection/status
+   - robot/power/battery_voltage
 
 ## ODOMeterNode
 
-
-  Published topics
-  Subscribed topics
+  Published topics:
+  Subscribed topics:
 
 ## LightControlNode
 
-
-  Published topics
-  Subscribed topics
+  Published topics:
+  Subscribed topics:
 
 ## LCManagerNode
 
-
-  Published topics
-  Subscribed topics
+  Published topics:
+  Subscribed topics:
 
 ## DriverNode
 
-
-  Published topics
-  Subscribed topics
+  Published topics:
+  Subscribed topics:
 
 ## CameraNode
 
-
-  Published topics
-  Subscribed topics
-
-
-
-
+  Published topics:
+  Subscribed topics:
 
 # Life cycle management
 
 # Startup
-
 
 # State control
 

@@ -10,7 +10,6 @@
 # LPn (XSHUT) back-left 35/PI2/258 Gray wire
 # LPn (XSHUT) back-right 37/PI16/272 Gray wire
 
-import time
 import math
 from enum import Enum
 from typing import Final, Dict
@@ -59,11 +58,11 @@ class VL53L5CX():
         # Create timer which run read_and_publish function in own MultiThreadedExecutor
         self.timer = node.create_timer(0.1, self.read_and_publish, callback_group=self.sensor_callback_group)
 
-        # /tof/front_left/points  sensor_msgs/msg/PointCloud2 Proximity → Nav2
-        # /tof/front_right/points sensor_msgs/msg/PointCloud2 Proximity → Nav2
-        # /tof/back_left/points   sensor_msgs/msg/PointCloud2 Proximity → Nav2
-        # /tof/back_right/points  sensor_msgs/msg/PointCloud2 Proximity → Nav2
-        self.point_cloud_pub = node.create_lifecycle_publisher(PointCloud2, f'tof/{self.name}', 10) # type: ignore reportAttributeAccessIssue
+        # robot/tof/front_left
+        # robot/tof/front_right
+        # robot/tof/back_left
+        # robot/tof/back_right
+        self.point_cloud_pub = node.create_lifecycle_publisher(PointCloud2, f'robot/tof/{self.name}', 10) # type: ignore reportAttributeAccessIssue
 
         self.logger.info(f"VL53L5CX {self.name} created")
 
@@ -204,7 +203,7 @@ class ProximitySensorNode(LifecycleNode):
             hw_sensor_back_right = VL53L5CXHardwareInterface('back_right', GPIO_LPn_pins.BACK_RIGHT.value)  # i2c0
             hw_sensor_back_left = VL53L5CXHardwareInterface('back_left', GPIO_LPn_pins.BACK_LEFT.value) # i2c0
         except Exception as e:
-             self.get_logger().error(f"Error in HW interface object creation: {e}")
+            self.get_logger().error(f"Error in HW interface object creation: {e}")
 
         # Initialize sensors
         try:

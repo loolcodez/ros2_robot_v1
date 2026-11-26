@@ -24,13 +24,13 @@ class WebsocketNode(LifecycleNode):
         self.get_logger().info("IN on_configure state")
 
         # Create Publisher for command coming from websocket
-        self.move_command_publisher = self.create_lifecycle_publisher(String, 'cmd_vel_manual', 10) # type: ignore reportAttributeAccessIssue
+        self.move_command_publisher = self.create_lifecycle_publisher(String, 'robot/cmd_vel_manual', 10) # type: ignore reportAttributeAccessIssue
 
         # Create Publisher for connection status, connected/disconnected
-        self.connection_status_publisher = self.create_lifecycle_publisher(String, '/connection/status', 10) # type: ignore reportAttributeAccessIssue
+        self.connection_status_publisher = self.create_lifecycle_publisher(String, 'robot/connection/status', 10) # type: ignore reportAttributeAccessIssue
 
         # Create subscriber for battery status
-        self.battery_status_subscription = self.create_subscription(String, '/power/battery_status', self.forward_battery_status, 10)
+        self.battery_status_subscription = self.create_subscription(String, 'robot/power/battery_status', self.forward_battery_status, 10)
 
         self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS

@@ -29,9 +29,9 @@ class OdometerNode(LifecycleNode):
     def on_configure(self, state):
         self.get_logger().info("IN on_configure state")
 
-        self.encoder_sub = self.create_subscription(Int32MultiArray, '/wheel_encoders', self.process_encoders, 10)
+        self.encoder_sub = self.create_subscription(Int32MultiArray, 'wheel_encoders', self.process_encoders, 10)
 
-        self.odom_pub = self.create_publisher(Odometry, '/odom_wheel', 10) # type: ignore
+        self.odom_pub = self.create_publisher(Odometry, 'odom_wheel', 10) # type: ignore
         self.get_logger().info('Returning SUCCESS')
         return TransitionCallbackReturn.SUCCESS
 

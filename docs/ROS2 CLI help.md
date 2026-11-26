@@ -26,7 +26,7 @@ ros2 topic echo /driver_node/transition_event
 # Listen topics
 
 # Websocket connection status change
-ros2 topic echo /connection/status
+ros2 topic echo robot/connection/status
 
 # ODO meter
 ros2 topic echo /wheel_encoders
@@ -75,43 +75,44 @@ https://roboticsbackend.com/ros2-topic-cmd-line-tool-debug-ros2-topics-from-the-
 
 ros2 topic list
 
-/camera/status
+robot/camera/status
 /camera_node/transition_event
 /cmd_lights
-/cmd_vel_in
-/cmd_vel_manual
-/cmd_vel_out
-/connection/status
+control/cmd_vel
+ai/cmd_vel
+robot/cmd_vel_manual
+robot/connection/status
 /diagnostics
 /driver_node/transition_event
-/imu/data_raw
+robot/imu/data_raw
 /joint_states
 /light_control_node/transition_event
 /lights_status
-/move/direction
-/odom_wheel
+robot/move/direction
+robot/odom_wheel
 /odometer_node/transition_event
 /odometry/filtered
 /parameter_events
-/power/alert
-/power/battery_status
-/power/battery_voltage
-/power/shutdown
-/power_control_node/transition_event
-/proximity_sensor_node/transition_event
-/range
-/robot_description
-/rosout
-/safety_control_node/transition_event
-/set_pose
-/tf
-/tf_static
-/tof/back_left
-/tof/back_right
-/tof/front_left
-/tof/front_right
-/websocket_node/transition_event
-/wheel_encoders
+robot/power/alert
+robot/power/battery_status
+robot/power/battery_voltage
+robot/power/shutdown
+
+power_control_node/transition_event
+proximity_sensor_node/transition_event
+robot/distance-range
+robot_description
+rosout
+safety_control_node/transition_event
+set_pose
+tf
+tf_static
+robot/tof_back_left
+robot/tof_back_right
+robot/tof_front_left
+robot/tof_front_right
+websocket_node/transition_event
+wheel_encoders
 
 ros2 topic echo /odometry/filtered --once
 

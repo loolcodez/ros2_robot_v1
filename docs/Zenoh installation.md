@@ -12,7 +12,12 @@ sudo apt install ros-jazzy-rmw-zenoh-cpp
 
 To use Zenoh is used by default between all nodes add RMW_IMPLEMENTATION in ~/.bashrc file:
 
-echo "export RMW_IMPLEMENTATION=rmw_zenoh_cpp" >> ~/.bashrc
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+
+nano ~/.bashrc
+
+Save the file 
+
 source ~/.bashrc
 
 Make sure that following line is before that in the same file
@@ -31,6 +36,8 @@ cp /opt/ros/jazzy/share/rmw_zenoh_cpp/config/DEFAULT_RMW_ZENOH_ROUTER_CONFIG.jso
 
 3.2. Check listening address in file ~/zenoh_config/router_config.json5:
 
+nano ~/zenoh_config/router_config.json5
+
 Make sure that listen block has tcp/0.0.0.0:7447 (Most Jazzy versions this is already default: tcp/[::]:7447, which listens both IPv4  and IPv6 addresses).
 
 3.3. Switch ON shared memory to improve robot's internal communication speed:
@@ -40,38 +47,24 @@ This can be done either in configuration file or exporting environment variable:
 export ZENOH_CONFIG_OVERRIDE='transport/shared_memory/enabled=true'
 
 
-4. Test installation
-
-Open three terminals in robot and test that messages goes through Zenoh:
-
-• In terminal 1 start Zenoh router
-ros2 run rmw_zenoh_cpp rmw_zenohd
-
-• In terminal 2 start listener
-ros2 run demo_nodes_cpp listener
-
-• In terminal 3 start sender
-ros2 run demo_nodes_cpp talker
-
-You should see "I heard: [Hello World: ...]" messages in terminal 2, when it works correctly
-
-5. Start router automatic in robot's boot (Systemd)
+4. Start router automatic in robot's boot (Systemd)
 
 Create background service for rmw_zenohd process:
 
 sudo nano /etc/systemd/system/zenoh-router.service
 
+Add following content in the file:
 
-Add following content in the file (Replace ubuntu robot's own username):
-ini
 [Unit]
 Description=ROS 2 Zenoh Router
 After=network.target
 
 [Service]
 Type=simple
-User=ubuntu
+User=orangepi
 Environment="RMW_IMPLEMENTATION=rmw_zenoh_cpp"
+Environment="ZENOH_ROUTER_CONFIG_URI=/home/orangepi/zenoh_config/router.json5"
+Environment="ZENOH_SESSION_CONFIG_URI=/home/orangepi/zenoh_config/session.json5"
 ExecStart=/bin/bash -c "source /opt/ros/jazzy/setup.bash && ros2 run rmw_zenoh_cpp rmw_zenohd"
 Restart=always
 RestartSec=3
@@ -87,4 +80,49 @@ sudo systemctl enable zenoh-router.service
 sudo systemctl start zenoh-router.service
 
 
-Kun olet saanut reitittimen pyörimään, haluatko seuraavaksi konfiguraation client-noodeille (esim. AI-palvelimen tai tabletin yhdistäminen robotin IP-osoitteeseen) vai koodipohjan safety-noodille, joka ottaa vastaan 8 tavun joystick-viestejä?
+
+5. Zenoh Configuration files
+
+Add these lines in ~/.bashrc file
+
+nano ~/.bashrc
+
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_ROUTER_CONFIG_URI="$HOME/zenoh_config/router.json5
+export ZENOH_SESSION_CONFIG_URI="$HOME/zenoh_config/session.json5
+
+
+ROS 2 Jazzy rmw_zenoh_cpp uses two default configuration files which are in  /opt/ros/jazzy/share/rmw_zenoh_cpp/config/ directory:
+
+1. DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5 (For router rmw_zenohd)
+2. DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5 (For all regular ROS 2 node)
+
+This is how you take them in use:
+1. Copy both files in home directory:
+
+mkdir -p ~/zenoh_config
+cp /opt/ros/jazzy/share/rmw_zenoh_cpp/config/DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5 ~/zenoh_config/router.json5
+cp /opt/ros/jazzy/share/rmw_zenoh_cpp/config/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5 ~/zenoh_config/session.json5
+
+
+2. Edit both files (~/zenoh_config/router.json5 ja session.json5):
+
+Find shared_memory (about in line 150–200) and change enabled:
+
+shared_memory: {
+  enabled: true,
+},
+
+
+6. Test installation
+
+Open three terminals in robot and test that messages goes through Zenoh:
+
+• In terminal 2 start listener
+ros2 run demo_nodes_cpp listener
+
+• In terminal 3 start sender
+ros2 run demo_nodes_cpp talker
+
+You should see "I heard: [Hello World: ...]" messages in terminal 2, when it works correctly
+
